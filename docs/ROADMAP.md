@@ -21,6 +21,8 @@ Already shipped, so it is not repeated in the lists below:
   volume, per-book resume, keyboard shortcuts.
 - `ab-media://` protocol with byte-range seeking; cover extraction with folder
   fallback; paged grid rendering.
+- **Sleep timer** — fixed duration / end-of-chapter / end-of-book, with a 20s
+  volume fade, 30s rewind on resume, and a "+5 min" extend (Tier 1 #1, shipped).
 
 Known gaps carried forward as motivation: series volumes can share a display
 title, box sets stay whole, and merged `.m4b` parts collapse to one chapter each.
@@ -33,13 +35,12 @@ These are table stakes across Smart AudioBook Player, BookPlayer, Listen, and
 Prologue. Their absence is the most likely reason someone would keep another app
 open alongside this one.
 
-### 1. Sleep timer — **S/M**
-End-of-chapter, fixed duration, or "end of book". A gentle volume fade over the
-last ~20s reads far better than a hard stop, and a "rewind 30s on resume" so you
-don't lose your place when you fall asleep mid-sentence. Desktop twist: a
-"snooze / +5 min" affordance via a global hotkey or the tray icon.
-*Implementation:* a timer in the renderer driving `el.audio.volume`, plus a small
-control in the player bar. No main-process work.
+### 1. Sleep timer — **shipped** ✅
+End-of-chapter, fixed duration, or "end of book"; a 20s volume fade rather than a
+hard stop; 30s rewind on resume; "+5 min" extend. Renderer-only (`app.js` timer
+driving `el.audio.volume`, control in the player bar, `T` to open the menu).
+*Still possible:* a true system-wide hotkey and tray "+5 min" (needs main-process
+`globalShortcut` / `Tray`), deferred to keep this renderer-only.
 
 ### 2. Bookmarks with notes — **M**
 Named bookmarks at a timestamp, optional text note, list view, jump-to. Auto-drop

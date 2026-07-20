@@ -76,6 +76,22 @@
       </div>
 
       <div class="extras">
+        <div class="extra sleep">
+          <button id="sleepBtn" class="sleep-btn" aria-haspopup="true" aria-expanded="false" title="Sleep timer (T)">
+            <span class="sleep-icon">☾</span><span id="sleepLabel" class="sleep-label">Sleep</span>
+          </button>
+          <div id="sleepMenu" class="sleep-menu hidden" role="menu">
+            <button class="sleep-opt" role="menuitem" data-sleep="chapter">End of chapter</button>
+            <button class="sleep-opt" role="menuitem" data-sleep="book">End of book</button>
+            <button class="sleep-opt" role="menuitem" data-sleep="300">5 minutes</button>
+            <button class="sleep-opt" role="menuitem" data-sleep="900">15 minutes</button>
+            <button class="sleep-opt" role="menuitem" data-sleep="1800">30 minutes</button>
+            <button class="sleep-opt" role="menuitem" data-sleep="2700">45 minutes</button>
+            <button class="sleep-opt" role="menuitem" data-sleep="3600">60 minutes</button>
+            <button class="sleep-opt sleep-extend hidden" role="menuitem" data-sleep="snooze">+5 minutes</button>
+            <button class="sleep-opt sleep-off" role="menuitem" data-sleep="off">Off</button>
+          </div>
+        </div>
         <label class="extra">
           <span class="extra-label">Speed</span>
           <select id="speed" aria-label="Playback speed">

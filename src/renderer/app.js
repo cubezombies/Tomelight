@@ -17,6 +17,9 @@ const el = {
   back30Btn: $('back30Btn'), fwd30Btn: $('fwd30Btn'),
   speed: $('speed'), volume: $('volume'),
   miniCover: $('miniCover'), nowTitle: $('nowTitle'), nowChapter: $('nowChapter'),
+  sleep: $('sleep') || document.querySelector('.sleep'),
+  sleepBtn: $('sleepBtn'), sleepLabel: $('sleepLabel'), sleepMenu: $('sleepMenu'),
+  sleepSnooze: document.querySelector('.sleep-extend'),
 };
 
 const state = {
@@ -31,9 +34,18 @@ const state = {
   seeking: false,
   filtered: [],        // books matching the current search
   gridShown: 0,        // how many cards are currently in the DOM
+  userVolume: 1,       // volume the user set; audio volume = this * sleep fade
+  sleep: {
+    mode: 'off',       // 'off' | 'duration' | 'chapter' | 'book'
+    remainingMs: 0,    // duration mode: playback time left before firing
+    fadeGain: 1,       // 1 normally, ramps to 0 over the closing fade
+    firedPaused: false,// true when the timer paused us (so resume rewinds)
+  },
 };
 
 let gridObserver = null;
+const SLEEP_FADE_SEC = 20;   // gentle fade over the final stretch
+const SLEEP_REWIND_SEC = 30; // rewind on resume after the timer stops you
 
 /* ---------------- helpers ---------------- */
 
@@ -397,6 +409,152 @@ function flushProgress() {
   window.api.saveProgress({ bookId: book.id, position, duration });
 }
 
+/* ---------------- sleep timer ---------------- */
+
+/** Actual audio volume is the user's setting scaled by the sleep fade. */
+function applyVolume() {
+  el.audio.volume = Math.max(0, Math.min(1, state.userVolume * state.sleep.fadeGain));
+}
+
+/**
+ * Real-world seconds until the timer should fire, or Infinity when off.
+ * Chapter/book modes are measured in book-time and divided by the playback rate
+ * so the fade and countdown track wall-clock time, not audio time.
+ */
+function sleepRemaining() {
+  const s = state.sleep;
+  if (s.mode === 'off') return Infinity;
+  if (s.mode === 'duration') return s.remainingMs / 1000;
+
+  const book = state.playing;
+  if (!book) return Infinity;
+  const rate = el.audio.playbackRate || 1;
+  const position = globalTime();
+
+  if (s.mode === 'book') return (effectiveDuration(book) - position) / rate;
+
+  // End of chapter (falls back to end of book when the book has no chapters).
+  if (!book.chapters.length) return (effectiveDuration(book) - position) / rate;
+  const idx = chapterAt(book, position);
+  const end = book.chapters[idx]?.end ?? effectiveDuration(book);
+  return (end - position) / rate;
+}
+
+let sleepLastTick = performance.now();
+
+function sleepTick() {
+  const now = performance.now();
+  const dt = now - sleepLastTick;
+  sleepLastTick = now;
+
+  const s = state.sleep;
+  if (s.mode === 'off') return;
+
+  // The duration budget only burns down while audio is actually playing.
+  if (s.mode === 'duration' && !el.audio.paused) {
+    s.remainingMs = Math.max(0, s.remainingMs - dt);
+  }
+
+  const remaining = sleepRemaining();
+
+  // The fade only advances while playing, so pausing near the end doesn't
+  // silently dim the audio and leave it quiet on resume.
+  if (!el.audio.paused) {
+    const gain = remaining >= SLEEP_FADE_SEC ? 1 : Math.max(0, remaining / SLEEP_FADE_SEC);
+    if (gain !== s.fadeGain) { s.fadeGain = gain; applyVolume(); }
+  }
+
+  el.sleep?.classList.toggle('fading', !el.audio.paused && remaining < SLEEP_FADE_SEC);
+  updateSleepLabel(remaining);
+
+  if (remaining <= 0.1 && !el.audio.paused) fireSleep();
+}
+
+function fireSleep() {
+  el.audio.pause();
+  state.sleep.firedPaused = true;
+  // Restore the fade for next time; audio is paused so nothing jumps.
+  state.sleep.fadeGain = 1;
+  applyVolume();
+  setSleepMode('off', undefined, { keepExtend: true });
+}
+
+function updateSleepLabel(remaining) {
+  const s = state.sleep;
+  if (s.mode === 'off') { el.sleepLabel.textContent = 'Sleep'; return; }
+  if (s.mode === 'duration' || Number.isFinite(remaining)) {
+    el.sleepLabel.textContent = formatTime(Math.max(0, remaining));
+  } else {
+    el.sleepLabel.textContent = s.mode === 'chapter' ? 'Chapter' : 'Book';
+  }
+}
+
+/**
+ * @param {'off'|'duration'|'chapter'|'book'} mode
+ * @param {number} [seconds] duration in seconds (duration mode only)
+ * @param {{keepExtend?: boolean}} [opts]
+ */
+function setSleepMode(mode, seconds, opts = {}) {
+  const s = state.sleep;
+  s.mode = mode;
+  if (mode === 'duration') s.remainingMs = (seconds || 0) * 1000;
+  if (mode === 'off') {
+    s.fadeGain = 1;
+    applyVolume();
+  }
+  sleepLastTick = performance.now();
+
+  const active = mode !== 'off';
+  el.sleep?.classList.toggle('active', active);
+  el.sleep?.classList.remove('fading');
+  // Offer "+5 minutes" while a timer runs, or right after one fired.
+  el.sleepSnooze?.classList.toggle('hidden', !active && !opts.keepExtend);
+
+  for (const opt of el.sleepMenu.querySelectorAll('.sleep-opt')) {
+    const val = opt.dataset.sleep;
+    const selected = (mode === 'chapter' && val === 'chapter')
+      || (mode === 'book' && val === 'book')
+      || (mode === 'duration' && Number(val) * 1000 === s.remainingMs);
+    opt.classList.toggle('selected', selected);
+  }
+  updateSleepLabel(sleepRemaining());
+}
+
+function openSleepMenu(open) {
+  el.sleepMenu.classList.toggle('hidden', !open);
+  el.sleepBtn.setAttribute('aria-expanded', String(open));
+}
+
+el.sleepBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  openSleepMenu(el.sleepMenu.classList.contains('hidden'));
+});
+
+el.sleepMenu.addEventListener('click', (e) => {
+  const opt = e.target.closest('.sleep-opt');
+  if (!opt) return;
+  const val = opt.dataset.sleep;
+
+  if (val === 'off') setSleepMode('off');
+  else if (val === 'chapter') setSleepMode('chapter');
+  else if (val === 'book') setSleepMode('book');
+  else if (val === 'snooze') {
+    // Extend by five minutes; if the timer already fired, pick playback back up.
+    setSleepMode('duration', 300);
+    if (el.audio.paused && state.playing) el.audio.play().catch(() => {});
+  } else {
+    setSleepMode('duration', Number(val));
+  }
+  openSleepMenu(false);
+});
+
+// Close the menu when clicking elsewhere.
+document.addEventListener('click', (e) => {
+  if (!el.sleep?.contains(e.target)) openSleepMenu(false);
+});
+
+setInterval(sleepTick, 200);
+
 /* ---------------- events ---------------- */
 
 el.playBtn.addEventListener('click', () => {
@@ -404,7 +562,16 @@ el.playBtn.addEventListener('click', () => {
   else el.audio.pause();
 });
 
-el.audio.addEventListener('play', () => { el.playBtn.textContent = '❚❚'; el.playBtn.setAttribute('aria-label', 'Pause'); });
+el.audio.addEventListener('play', () => {
+  el.playBtn.textContent = '❚❚';
+  el.playBtn.setAttribute('aria-label', 'Pause');
+  // Resuming after the sleep timer stopped us: rewind a little so you don't
+  // wake up having missed the last thing you heard.
+  if (state.sleep.firedPaused) {
+    state.sleep.firedPaused = false;
+    seekTo(globalTime() - SLEEP_REWIND_SEC);
+  }
+});
 el.audio.addEventListener('pause', () => { el.playBtn.textContent = '▶'; el.playBtn.setAttribute('aria-label', 'Play'); flushProgress(); });
 el.audio.addEventListener('timeupdate', updateTimeUI);
 
@@ -442,7 +609,7 @@ el.prevChapterBtn.addEventListener('click', () => jumpChapter(-1));
 el.nextChapterBtn.addEventListener('click', () => jumpChapter(1));
 
 el.speed.addEventListener('change', () => { el.audio.playbackRate = Number(el.speed.value); });
-el.volume.addEventListener('input', () => { el.audio.volume = Number(el.volume.value); });
+el.volume.addEventListener('input', () => { state.userVolume = Number(el.volume.value); applyVolume(); });
 
 el.backBtn.addEventListener('click', showLibrary);
 el.search.addEventListener('input', renderGrid);
@@ -464,7 +631,15 @@ document.addEventListener('keydown', (e) => {
     case ' ':        e.preventDefault(); el.playBtn.click(); break;
     case 'ArrowLeft':  seekTo(globalTime() - (e.shiftKey ? 300 : 30)); break;
     case 'ArrowRight': seekTo(globalTime() + (e.shiftKey ? 300 : 30)); break;
-    case 'Escape':   if (state.current) showLibrary(); break;
+    case 't': case 'T':
+      if (!el.player.classList.contains('hidden')) {
+        openSleepMenu(el.sleepMenu.classList.contains('hidden'));
+      }
+      break;
+    case 'Escape':
+      if (!el.sleepMenu.classList.contains('hidden')) openSleepMenu(false);
+      else if (state.current) showLibrary();
+      break;
     default: break;
   }
 });

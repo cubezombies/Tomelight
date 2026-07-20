@@ -1,7 +1,7 @@
 # Audiobook-player
 
 A desktop audiobook player for Windows, built with Electron. Plays local files with
-real chapter navigation, per-book resume, and variable speed.
+real chapter navigation, per-book resume, variable speed, and a sleep timer.
 
 Planned features, differentiators, and performance work are tracked in
 [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -122,4 +122,14 @@ actually in your library, so it can't be used to read arbitrary files.
 | `Space` | Play / pause |
 | `←` / `→` | Back / forward 30s |
 | `Shift` + `←` / `→` | Back / forward 5 min |
-| `Esc` | Back to library |
+| `T` | Open the sleep-timer menu |
+| `Esc` | Close the sleep menu, or go back to the library |
+
+## Sleep timer
+
+The moon control in the player bar stops playback after a set time — a fixed
+duration (5–60 min), at the **end of the current chapter**, or at the **end of
+the book**. The volume fades gently over the last 20 seconds rather than cutting
+out. If you fall asleep, resuming rewinds 30 seconds so you don't lose your place,
+and **+5 minutes** extends (or restarts) the timer and picks playback back up.
+The duration countdown only runs while audio is playing, so pausing pauses it too.
