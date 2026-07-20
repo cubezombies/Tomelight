@@ -13,4 +13,5 @@ module.exports = {
   COVER_CACHE: path.join(DATA_ROOT, 'covers'),
   LIBRARY_FILE: path.join(DATA_ROOT, 'library.json'),
   PROGRESS_FILE: path.join(DATA_ROOT, 'progress.json'),
+  BOOKMARKS_FILE: path.join(DATA_ROOT, 'bookmarks.json'),
 };

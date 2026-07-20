@@ -3,7 +3,7 @@
 ![Tomelight](assets/logo.png)
 
 A desktop audiobook player for Windows, built with Electron. Plays local files with
-real chapter navigation, per-book resume, variable speed, and a sleep timer.
+real chapter navigation, per-book resume, variable speed, bookmarks, and a sleep timer.
 
 The name is *tome* + *light* — reading old tomes by candlelight.
 
@@ -73,6 +73,7 @@ D:\Claude\Tomelight\
   covers\         extracted cover art
   library.json    scanned library
   progress.json   per-book listening position
+  bookmarks.json  per-book bookmarks
 ```
 
 Scanning a large library takes a few minutes the first time. Results are cached
@@ -133,8 +134,18 @@ actually in your library, so it can't be used to read arbitrary files.
 | `Space` | Play / pause |
 | `←` / `→` | Back / forward 30s |
 | `Shift` + `←` / `→` | Back / forward 5 min |
+| `B` | Add a bookmark at the current spot |
 | `T` | Open the sleep-timer menu |
 | `Esc` | Close the sleep menu, or go back to the library |
+
+## Bookmarks
+
+Press `B` or the 🔖 button in the player to drop a bookmark at the current spot;
+its label defaults to the current chapter. Bookmarks appear in the book's detail
+view, where you can rename them, add a note, jump back with one click, or delete
+them. Every manual pause also drops a single rolling **"Last stop"** marker so you
+can always find where you set the book down — editing it makes it permanent.
+Bookmarks are stored in `bookmarks.json` in the data folder.
 
 ## Sleep timer
 

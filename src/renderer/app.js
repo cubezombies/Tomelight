@@ -11,6 +11,8 @@ const el = {
   bookCover: $('bookCover'), bookTitle: $('bookTitle'), bookAuthor: $('bookAuthor'),
   bookSub: $('bookSub'), bookDesc: $('bookDesc'), chapterList: $('chapterList'),
   chapterCount: $('chapterCount'), resetProgressBtn: $('resetProgressBtn'),
+  bookmarkBtn: $('bookmarkBtn'), bookmarkHereBtn: $('bookmarkHereBtn'),
+  bookmarkList: $('bookmarkList'), bookmarkCount: $('bookmarkCount'),
   player: $('player'), audio: $('audio'), playBtn: $('playBtn'), seek: $('seek'),
   timeCurrent: $('timeCurrent'), timeTotal: $('timeTotal'),
   prevChapterBtn: $('prevChapterBtn'), nextChapterBtn: $('nextChapterBtn'),
@@ -25,6 +27,7 @@ const el = {
 const state = {
   books: [],
   progress: {},
+  bookmarks: {},       // { [bookId]: Bookmark[] }
   folders: [],
   current: null,       // book being viewed
   playing: null,       // book loaded in the player
@@ -201,6 +204,7 @@ function openBook(bookId) {
   el.bookDesc.classList.toggle('hidden', !book.description);
 
   renderChapters(book);
+  renderBookmarks(book);
   loadIntoPlayer(book);
 }
 
@@ -242,6 +246,139 @@ function renderChapters(book) {
   });
 }
 
+/* ---------------- bookmarks ---------------- */
+
+function bookmarksFor(bookId) {
+  return [...(state.bookmarks[bookId] ?? [])].sort((a, b) => a.position - b.position);
+}
+
+function renderBookmarks(book) {
+  const list = bookmarksFor(book.id);
+  el.bookmarkList.replaceChildren();
+  el.bookmarkCount.textContent = list.length ? `(${list.length})` : '';
+
+  if (!list.length) {
+    const li = document.createElement('li');
+    li.className = 'no-bookmarks';
+    li.textContent = 'No bookmarks yet — press B or the 🔖 button while listening to mark a spot.';
+    el.bookmarkList.append(li);
+    return;
+  }
+
+  for (const bm of list) {
+    const row = buildBookmarkRow(book, bm);
+    el.bookmarkList.append(row);
+    autoGrow(row.querySelector('.bookmark-note')); // needs to be in the DOM for scrollHeight
+  }
+}
+
+function buildBookmarkRow(book, bm) {
+  const li = document.createElement('li');
+  li.className = `bookmark${bm.auto ? ' auto' : ''}`;
+  li.dataset.id = bm.id;
+
+  const jump = document.createElement('button');
+  jump.className = 'bookmark-jump';
+  jump.textContent = formatTime(bm.position);
+  jump.title = 'Jump to this spot';
+  jump.addEventListener('click', () => {
+    if (state.playing?.id !== book.id) loadIntoPlayer(book);
+    seekTo(bm.position, { autoplay: true });
+  });
+
+  const body = document.createElement('div');
+  body.className = 'bookmark-body';
+
+  const label = document.createElement('input');
+  label.className = 'bookmark-label';
+  label.value = bm.label || '';
+  label.placeholder = 'Bookmark';
+  label.setAttribute('aria-label', 'Bookmark label');
+  commitOnEdit(label, () => saveBookmark(book.id, bm.id, { label: label.value }));
+
+  const note = document.createElement('textarea');
+  note.className = 'bookmark-note';
+  note.rows = 1;
+  note.value = bm.note || '';
+  note.placeholder = 'Add a note…';
+  note.classList.toggle('empty', !bm.note);
+  note.addEventListener('input', () => { autoGrow(note); note.classList.toggle('empty', !note.value); });
+  commitOnEdit(note, () => saveBookmark(book.id, bm.id, { note: note.value }), { allowNewline: true });
+
+  body.append(label, note);
+
+  const actions = document.createElement('div');
+  actions.className = 'bookmark-actions';
+  const del = document.createElement('button');
+  del.className = 'bookmark-del';
+  del.textContent = '🗑';
+  del.title = 'Delete bookmark';
+  del.addEventListener('click', async () => {
+    state.bookmarks = await window.api.removeBookmark({ bookId: book.id, id: bm.id });
+    refreshBookmarksView();
+  });
+  actions.append(del);
+
+  li.append(jump, body, actions);
+  return li;
+}
+
+/** Save on Enter (Shift+Enter allowed for notes) or blur, if the value changed. */
+function commitOnEdit(input, save, { allowNewline = false } = {}) {
+  let original = input.value;
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !(allowNewline && e.shiftKey)) { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = original; input.blur(); }
+    e.stopPropagation(); // don't trigger global player shortcuts while typing
+  });
+  input.addEventListener('blur', () => {
+    if (input.value !== original) { original = input.value; save(); }
+  });
+}
+
+function autoGrow(textarea) {
+  textarea.style.height = 'auto';
+  textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
+async function saveBookmark(bookId, id, fields) {
+  state.bookmarks = await window.api.updateBookmark({ bookId, id, ...fields });
+  // Editing promotes an auto bookmark to permanent; reflect that styling.
+  refreshBookmarksView();
+}
+
+/** Re-render the bookmarks list if its book is the one on screen. */
+function refreshBookmarksView() {
+  if (state.current) renderBookmarks(state.current);
+}
+
+/**
+ * Add a bookmark at the current position. Manual bookmarks default their label
+ * to the current chapter; the auto "last stop" marker is dropped on manual pause.
+ */
+async function addBookmark({ auto = false } = {}) {
+  const book = state.playing || state.current;
+  if (!book) return;
+  const position = state.playing?.id === book.id ? globalTime() : (state.progress[book.id]?.position ?? 0);
+
+  let label = '';
+  if (auto) {
+    label = 'Last stop';
+  } else if (book.chapters.length) {
+    label = book.chapters[chapterAt(book, position)]?.title ?? '';
+  }
+
+  state.bookmarks = await window.api.addBookmark({ bookId: book.id, position, label, note: '', auto });
+  refreshBookmarksView();
+  if (!auto) flashBookmarkButton();
+}
+
+function flashBookmarkButton() {
+  el.bookmarkBtn.classList.remove('flash');
+  void el.bookmarkBtn.offsetWidth; // restart the animation
+  el.bookmarkBtn.classList.add('flash');
+}
+
 function highlightChapter(index) {
   if (index === state.activeChapter) return;
   state.activeChapter = index;
@@ -277,7 +414,12 @@ function globalTime() {
   const book = state.playing;
   if (!book) return 0;
   const track = book.tracks[state.trackIndex];
-  const local = Number.isFinite(el.audio.currentTime) ? el.audio.currentTime : 0;
+  // While a seek is still pending (the track's metadata hasn't loaded yet),
+  // el.audio.currentTime reads 0 — report the intended target instead so
+  // bookmarks and progress captured during load reflect where we're going.
+  const local = state.pendingSeek != null
+    ? state.pendingSeek
+    : (Number.isFinite(el.audio.currentTime) ? el.audio.currentTime : 0);
   return (track?.offset ?? 0) + local;
 }
 
@@ -558,8 +700,13 @@ setInterval(sleepTick, 200);
 /* ---------------- events ---------------- */
 
 el.playBtn.addEventListener('click', () => {
-  if (el.audio.paused) el.audio.play().catch((err) => console.error('playback failed:', err));
-  else el.audio.pause();
+  if (el.audio.paused) {
+    el.audio.play().catch((err) => console.error('playback failed:', err));
+  } else {
+    // Manual pause (button or spacebar): remember where we stopped.
+    addBookmark({ auto: true });
+    el.audio.pause();
+  }
 });
 
 el.audio.addEventListener('play', () => {
@@ -625,12 +772,18 @@ el.resetProgressBtn.addEventListener('click', async () => {
   renderGrid();
 });
 
+el.bookmarkBtn.addEventListener('click', () => addBookmark());
+el.bookmarkHereBtn.addEventListener('click', () => addBookmark());
+
 document.addEventListener('keydown', (e) => {
   if (e.target.matches('input, select, textarea')) return;
   switch (e.key) {
     case ' ':        e.preventDefault(); el.playBtn.click(); break;
     case 'ArrowLeft':  seekTo(globalTime() - (e.shiftKey ? 300 : 30)); break;
     case 'ArrowRight': seekTo(globalTime() + (e.shiftKey ? 300 : 30)); break;
+    case 'b': case 'B':
+      if (state.playing || state.current) addBookmark();
+      break;
     case 't': case 'T':
       if (!el.player.classList.contains('hidden')) {
         openSleepMenu(el.sleepMenu.classList.contains('hidden'));
@@ -650,12 +803,18 @@ function applyState(next) {
   state.books = next.books;
   state.progress = next.progress;
   state.folders = next.folders;
+  if (next.bookmarks) state.bookmarks = next.bookmarks;
 
   // Keep the open book in sync with rescanned data.
   if (state.current) {
     const refreshed = state.books.find((b) => b.id === state.current.id);
-    if (refreshed) { state.current = refreshed; renderChapters(refreshed); }
-    else showLibrary();
+    if (refreshed) {
+      state.current = refreshed;
+      renderChapters(refreshed);
+      renderBookmarks(refreshed);
+    } else {
+      showLibrary();
+    }
   }
   renderGrid();
 }

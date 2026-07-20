@@ -23,6 +23,8 @@ Already shipped, so it is not repeated in the lists below:
   fallback; paged grid rendering.
 - **Sleep timer** — fixed duration / end-of-chapter / end-of-book, with a 20s
   volume fade, 30s rewind on resume, and a "+5 min" extend (Tier 1 #1, shipped).
+- **Bookmarks** — named marks with notes, jump-to, list view in the book detail,
+  and a rolling "last stop" auto-bookmark on manual pause (Tier 1 #2, shipped).
 
 Known gaps carried forward as motivation: series volumes can share a display
 title, box sets stay whole, and merged `.m4b` parts collapse to one chapter each.
@@ -42,13 +44,13 @@ driving `el.audio.volume`, control in the player bar, `T` to open the menu).
 *Still possible:* a true system-wide hotkey and tray "+5 min" (needs main-process
 `globalShortcut` / `Tray`), deferred to keep this renderer-only.
 
-### 2. Bookmarks with notes — **M**
-Named bookmarks at a timestamp, optional text note, list view, jump-to. Auto-drop
-a bookmark on every manual pause so you can always find "where was I when I
-stopped to do something." Persist alongside progress in a new `bookmarks.json`
-(or the SQLite store from the optimizations section).
-*Why it matters:* the single most-requested audiobook feature in every review
-thread. Also the foundation for clip export (Tier 2).
+### 2. Bookmarks with notes — **shipped** ✅
+Named bookmarks with an optional note, a list view in the book detail (rename,
+note, jump-to, delete), and a single rolling "last stop" auto-bookmark dropped on
+manual pause (editing it makes it permanent). Persisted in `bookmarks.json` via
+the same `JsonStore`. Still the foundation for clip export (Tier 2).
+*Possible next:* a bookmark count/indicator on library cards, and global
+cross-book bookmark search once the data layer moves to SQLite.
 
 ### 3. Skip silence / "smart speed" — **M/L**
 Real-time detection of silent gaps and long pauses, shortening them without an

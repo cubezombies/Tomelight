@@ -153,6 +153,59 @@ code { background: var(--bg-elev-2); padding: 1px 5px; border-radius: 4px; font-
 
 .no-chapters { color: var(--muted); padding: 10px 12px; }
 
+/* ---------- Bookmarks ---------- */
+.bookmarks { list-style: none; margin: 0 0 30px; padding: 0; }
+.bookmark {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 9px 12px; border-radius: 8px;
+  border: 1px solid transparent;
+}
+.bookmark:hover { background: var(--bg-elev); }
+.bookmark:hover .bookmark-actions { opacity: 1; }
+.bookmark.auto { opacity: 0.85; }
+
+.bookmark-jump {
+  background: var(--accent-soft); border: 1px solid transparent; color: var(--accent);
+  border-radius: 6px; padding: 3px 8px; cursor: pointer; flex-shrink: 0;
+  font-variant-numeric: tabular-nums; font-size: 12px; min-width: 62px; text-align: center;
+}
+.bookmark-jump:hover { border-color: var(--accent); }
+
+.bookmark-body { flex: 1; min-width: 0; }
+.bookmark-label {
+  background: transparent; border: 1px solid transparent; color: var(--text);
+  font-size: 13px; font-weight: 500; width: 100%; padding: 2px 4px; border-radius: 5px;
+  outline: none; font-family: inherit;
+}
+.bookmark-label:hover { border-color: var(--line); }
+.bookmark-label:focus { border-color: var(--accent); background: var(--bg-elev-2); }
+.bookmark.auto .bookmark-label { font-style: italic; color: var(--muted); }
+
+.bookmark-note {
+  background: transparent; border: 1px solid transparent; color: var(--muted);
+  font-size: 12px; width: 100%; padding: 2px 4px; border-radius: 5px; margin-top: 2px;
+  outline: none; resize: none; overflow: hidden; min-height: 20px; font-family: inherit; line-height: 1.4;
+}
+.bookmark-note:hover { border-color: var(--line); }
+.bookmark-note:focus { border-color: var(--accent); background: var(--bg-elev-2); color: var(--text); }
+.bookmark-note.empty:not(:focus) { color: #6a6a80; font-style: italic; }
+
+.bookmark-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .12s; flex-shrink: 0; }
+.bookmark-del {
+  background: transparent; border: none; color: var(--muted); cursor: pointer;
+  padding: 3px 7px; border-radius: 6px; font-size: 14px;
+}
+.bookmark-del:hover { background: #3a2330; color: #ff8a8a; }
+
+.no-bookmarks { color: var(--muted); padding: 8px 12px 4px; font-size: 13px; }
+
+.bookmark-btn.flash { animation: bm-flash .5s ease; }
+@keyframes bm-flash {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); color: var(--accent); }
+  100% { transform: scale(1); }
+}
+
 /* ---------- Player ---------- */
 .player {
   position: fixed; left: 0; right: 0; bottom: 0;

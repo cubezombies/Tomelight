@@ -42,10 +42,15 @@
           <p id="bookSub" class="muted small"></p>
           <p id="bookDesc" class="desc"></p>
           <div class="book-actions">
+            <button id="bookmarkHereBtn" class="btn">Bookmark current spot</button>
             <button id="resetProgressBtn" class="btn btn-quiet">Reset progress</button>
           </div>
         </div>
       </div>
+
+      <h3 class="section-label">Bookmarks <span id="bookmarkCount" class="muted small"></span></h3>
+      <ul id="bookmarkList" class="bookmarks"></ul>
+
       <h3 class="section-label">Chapters <span id="chapterCount" class="muted small"></span></h3>
       <ol id="chapterList" class="chapters"></ol>
     </section>
@@ -76,6 +81,7 @@
       </div>
 
       <div class="extras">
+        <button id="bookmarkBtn" class="icon-btn bookmark-btn" title="Add bookmark (B)" aria-label="Add bookmark">🔖</button>
         <div class="extra sleep">
           <button id="sleepBtn" class="sleep-btn" aria-haspopup="true" aria-expanded="false" title="Sleep timer (T)">
             <span class="sleep-icon">☾</span><span id="sleepLabel" class="sleep-label">Sleep</span>

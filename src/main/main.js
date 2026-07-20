@@ -1,10 +1,11 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 
-const { USER_DATA, LIBRARY_FILE, PROGRESS_FILE, DATA_ROOT, COVER_CACHE } = require('./paths');
+const { USER_DATA, LIBRARY_FILE, PROGRESS_FILE, BOOKMARKS_FILE, DATA_ROOT, COVER_CACHE } = require('./paths');
 
 app.setName('Tomelight');
 
@@ -21,6 +22,8 @@ registerScheme();
 
 const libraryStore = new JsonStore(LIBRARY_FILE, { folders: [], books: [] });
 const progressStore = new JsonStore(PROGRESS_FILE, {});
+// { [bookId]: Array<{ id, position, label, note, auto, createdAt }> }
+const bookmarksStore = new JsonStore(BOOKMARKS_FILE, {});
 
 let mainWindow = null;
 let scanning = false;
@@ -66,6 +69,7 @@ function currentState() {
     folders,
     books: books.map(toClientBook),
     progress: progressStore.get(),
+    bookmarks: bookmarksStore.get(),
     scanning,
   };
 }
@@ -173,6 +177,62 @@ function registerIpc() {
     return progress;
   });
 
+  ipcMain.handle('bookmarks:add', (_event, { bookId, position, label, note, auto }) => {
+    if (typeof bookId !== 'string' || typeof position !== 'number') return bookmarksStore.get();
+    const map = { ...bookmarksStore.get() };
+    const list = [...(map[bookId] ?? [])];
+
+    const bookmark = {
+      id: crypto.randomUUID(),
+      position,
+      label: (label ?? '').toString().slice(0, 200),
+      note: (note ?? '').toString().slice(0, 2000),
+      auto: Boolean(auto),
+      createdAt: Date.now(),
+    };
+
+    if (auto) {
+      // Keep a single rolling "last stop" marker rather than flooding the list.
+      const kept = list.filter((b) => !b.auto);
+      kept.push(bookmark);
+      map[bookId] = kept;
+    } else {
+      list.push(bookmark);
+      map[bookId] = list;
+    }
+
+    bookmarksStore.set(map);
+    return map;
+  });
+
+  ipcMain.handle('bookmarks:update', (_event, { bookId, id, label, note }) => {
+    const map = { ...bookmarksStore.get() };
+    const list = map[bookId];
+    if (!list) return map;
+    map[bookId] = list.map((b) => {
+      if (b.id !== id) return b;
+      // Editing a bookmark makes it permanent (no longer the auto "last stop").
+      return {
+        ...b,
+        label: label !== undefined ? label.toString().slice(0, 200) : b.label,
+        note: note !== undefined ? note.toString().slice(0, 2000) : b.note,
+        auto: false,
+      };
+    });
+    bookmarksStore.set(map);
+    return map;
+  });
+
+  ipcMain.handle('bookmarks:remove', (_event, { bookId, id }) => {
+    const map = { ...bookmarksStore.get() };
+    if (map[bookId]) {
+      map[bookId] = map[bookId].filter((b) => b.id !== id);
+      if (!map[bookId].length) delete map[bookId];
+      bookmarksStore.set(map);
+    }
+    return map;
+  });
+
   ipcMain.handle('app:revealDataFolder', () => shell.openPath(DATA_ROOT));
 }
 
@@ -197,7 +257,7 @@ function normalizeCoverPaths(libraryState) {
 }
 
 app.whenReady().then(async () => {
-  await Promise.all([libraryStore.load(), progressStore.load()]);
+  await Promise.all([libraryStore.load(), progressStore.load(), bookmarksStore.load()]);
   if (normalizeCoverPaths(libraryStore.get())) libraryStore.flush();
   registerMediaProtocol(getAllowedRoots);
   registerIpc();
@@ -218,4 +278,5 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   libraryStore.flushSync();
   progressStore.flushSync();
+  bookmarksStore.flushSync();
 });
