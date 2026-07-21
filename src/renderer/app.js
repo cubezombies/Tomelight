@@ -16,7 +16,8 @@ const el = {
   foldersList: $('foldersList'),
   bookCover: $('bookCover'), bookTitle: $('bookTitle'), bookAuthor: $('bookAuthor'),
   bookSub: $('bookSub'), bookDesc: $('bookDesc'), chapterList: $('chapterList'),
-  chapterCount: $('chapterCount'), resetProgressBtn: $('resetProgressBtn'),
+  chapterCount: $('chapterCount'), chapterSearch: $('chapterSearch'),
+  resetProgressBtn: $('resetProgressBtn'),
   finishedToggleBtn: $('finishedToggleBtn'),
   toast: $('toast'), toastMsg: $('toastMsg'), toastUndo: $('toastUndo'),
   bookmarkBtn: $('bookmarkBtn'), bookmarkHereBtn: $('bookmarkHereBtn'),
@@ -586,6 +587,7 @@ function openBook(bookId) {
 
   state.current = book;
   state.bookReturnsToSeries = null; // series volumes re-set this after this runs
+  el.chapterSearch.value = ''; // start each book's chapter list unfiltered
   el.libraryView.classList.add('hidden');
   el.seriesView.classList.add('hidden');
   el.bookView.classList.remove('hidden');
@@ -626,11 +628,22 @@ async function setBookFinished(book, finished) {
   renderLibrary();
 }
 
+/**
+ * Long chapter lists (Wind and Truth alone has 212) are unusable by scrolling
+ * alone, so #chapterSearch filters this list the same way the library search
+ * filters the grid. Rows keep their original array index in dataset.index even
+ * when filtered, so highlightChapter() (which matches on that) and click-to-seek
+ * keep working unchanged.
+ */
 function renderChapters(book) {
   el.chapterList.replaceChildren();
-  el.chapterCount.textContent = book.chapters.length ? `(${book.chapters.length})` : '';
 
-  if (!book.chapters.length) {
+  const total = book.chapters.length;
+  const query = el.chapterSearch.value.trim().toLowerCase();
+  el.chapterSearch.classList.toggle('hidden', total === 0);
+
+  if (!total) {
+    el.chapterCount.textContent = '';
     const li = document.createElement('li');
     li.className = 'no-chapters';
     li.textContent = 'This file has no embedded chapters — use the 30-second skip buttons to navigate.';
@@ -638,7 +651,23 @@ function renderChapters(book) {
     return;
   }
 
-  book.chapters.forEach((ch, i) => {
+  const matches = query
+    ? book.chapters
+        .map((ch, i) => ({ ch, i }))
+        .filter(({ ch, i }) => ch.title.toLowerCase().includes(query) || String(i + 1) === query)
+    : book.chapters.map((ch, i) => ({ ch, i }));
+
+  el.chapterCount.textContent = query ? `(${matches.length} of ${total})` : `(${total})`;
+
+  if (!matches.length) {
+    const li = document.createElement('li');
+    li.className = 'no-chapters';
+    li.textContent = `No chapters match "${el.chapterSearch.value.trim()}".`;
+    el.chapterList.append(li);
+    return;
+  }
+
+  for (const { ch, i } of matches) {
     const li = document.createElement('li');
     li.className = 'chapter';
     li.dataset.index = String(i);
@@ -661,7 +690,12 @@ function renderChapters(book) {
       seekTo(ch.start, { autoplay: true });
     });
     el.chapterList.append(li);
-  });
+  }
+
+  // The active-chapter highlight is set by index, so re-apply it after a
+  // re-render (e.g. from typing) rather than waiting for the next tick.
+  const activeNode = el.chapterList.querySelector(`.chapter[data-index="${state.activeChapter}"]`);
+  if (activeNode) activeNode.classList.add('active');
 }
 
 /* ---------------- bookmarks ---------------- */
@@ -1447,6 +1481,21 @@ el.volume.addEventListener('input', () => { state.userVolume = Number(el.volume.
 
 el.backBtn.addEventListener('click', goBack);
 el.search.addEventListener('input', renderLibrary);
+
+el.chapterSearch.addEventListener('input', () => { if (state.current) renderChapters(state.current); });
+el.chapterSearch.addEventListener('keydown', (e) => {
+  e.stopPropagation(); // don't let typed letters/space trigger player shortcuts, and
+                        // (since the global handler already skips input targets
+                        // anyway) keep Escape here from also triggering goBack
+  if (e.key === 'Escape') {
+    if (el.chapterSearch.value) {
+      el.chapterSearch.value = '';
+      if (state.current) renderChapters(state.current);
+    } else {
+      el.chapterSearch.blur();
+    }
+  }
+});
 
 el.groupToggle.addEventListener('click', () => {
   state.groupSeries = !state.groupSeries;

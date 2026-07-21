@@ -190,11 +190,18 @@ mark that was in effect right before the reset.
 auto-save, and Undo-after-Reset restoring the override together with position,
 verified round-tripped through the backend rather than just in-memory state.
 
-### 15. Chapter list search — **S**
-Long chapter lists have no search or jump — and this library has real cases that
-hurt: *Wind and Truth* alone has **212 chapters**. Scrolling to find one by eye is
-the actual experience today. A simple filter input above `#chapterList` (like the
-library search) would fix this directly.
+### 15. Chapter list search — **shipped** ✅
+A search box above `#chapterList`, filtering by title text or by chapter number
+(so typing `150` finds chapter 150 directly). Rows keep their original array
+index (`dataset.index`) even while filtered, so the existing active-chapter
+highlight and click-to-seek logic needed no changes — filtering only ever hides
+rows, never renumbers them. `Esc` clears the query first, then un-focuses on a
+second press, without leaving the book view.
+*Tested against the real 212-chapter Wind and Truth*: number search, title-text
+search (verified zero false positives — every rendered row actually contains the
+query), the no-match state, clicking a filtered row still seeks to the right
+spot, the active-chapter highlight surviving a re-filter, and the search
+resetting when a different book is opened.
 
 ### 16. Drag-and-drop to add a folder — **S**
 Dropping a folder onto the window is standard desktop-app behavior and currently

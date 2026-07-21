@@ -77,6 +77,12 @@ is a *fallback only* — real embedded chapters are never overridden. On the tes
 library it gave real chapters to ~47 otherwise-unnavigable books (some 80–180
 chapters long).
 
+**Searching a chapter list.** Some books have a lot of chapters — *Wind and
+Truth* has 212 — so the book view has a search box above the list. It filters by
+title text or by chapter number (typing `150` jumps straight to chapter 150
+without scrolling), updating as you type. `Esc` clears the search first, then
+un-focuses the box on a second press, rather than leaving the book view.
+
 ## Where data lives
 
 Everything is kept off `C:`. Paths are set in `src/main/paths.js` and can be
