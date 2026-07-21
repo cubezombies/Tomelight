@@ -10,7 +10,7 @@ const el = {
   groupToggle: $('groupToggle'), sortSelect: $('sortSelect'),
   seriesView: $('seriesView'), seriesTitle: $('seriesTitle'), seriesSub: $('seriesSub'), seriesGrid: $('seriesGrid'),
   libraryView: $('libraryView'), bookView: $('bookView'),
-  viewTitle: $('viewTitle'), backBtn: $('backBtn'), scanStatus: $('scanStatus'),
+  viewTitle: $('viewTitle'), backBtn: $('backBtn'), scanStatus: $('scanStatus'), themeBtn: $('themeBtn'),
   addFolderBtn: $('addFolderBtn'), emptyAddBtn: $('emptyAddBtn'), rescanBtn: $('rescanBtn'),
   bookCover: $('bookCover'), bookTitle: $('bookTitle'), bookAuthor: $('bookAuthor'),
   bookSub: $('bookSub'), bookDesc: $('bookDesc'), chapterList: $('chapterList'),
@@ -1381,6 +1381,35 @@ window.api.onScanProgress(({ done, total, scanning }) => {
 
 el.groupToggle.setAttribute('aria-pressed', String(state.groupSeries));
 el.sortSelect.value = state.sort;
+
+/* ---------------- theme ---------------- */
+
+const lightMedia = window.matchMedia('(prefers-color-scheme: light)');
+
+/** The theme currently in effect: an explicit override, else the OS preference. */
+function effectiveTheme() {
+  return document.documentElement.getAttribute('data-theme')
+    || (lightMedia.matches ? 'light' : 'dark');
+}
+
+function updateThemeButton() {
+  // Show the sun in dark mode (click for light) and the moon in light mode.
+  el.themeBtn.textContent = effectiveTheme() === 'dark' ? '☀' : '☾';
+}
+
+function toggleTheme() {
+  const next = effectiveTheme() === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  updateThemeButton();
+}
+
+el.themeBtn.addEventListener('click', toggleTheme);
+// Follow OS changes when the user hasn't chosen an explicit override.
+lightMedia.addEventListener('change', () => {
+  if (!localStorage.getItem('theme')) updateThemeButton();
+});
+updateThemeButton();
 
 // Needed before the first src assignment so the Web Audio analyser (skip
 // silence) can read the ab-media:// stream instead of a tainted, all-zero one.

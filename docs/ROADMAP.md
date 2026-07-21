@@ -110,9 +110,14 @@ books whose title omits the series — those want the sidecar/online metadata be
 In-progress books surface in a row at the top of the library, most-recently-played
 first, hidden while searching or filtering. Finished state drives the filter tabs.
 
-### 9. Light theme + theme toggle — **S**
-Currently dark-only. The CSS already uses variables, so a light palette behind a
-`prefers-color-scheme` default plus a manual toggle is small.
+### 9. Light theme + theme toggle — **shipped** ✅
+A light palette under `:root[data-theme="light"]`, mirrored in a
+`prefers-color-scheme: light` media query for the system-default case. The eight
+places that had hardcoded colors (button hovers, scrollbar, bookmark-delete,
+etc.) were pulled into variables too, so the whole UI actually re-themes, not
+just the parts that already used variables. The ☀/☾ button in the top bar
+overrides the OS choice and persists it; a tiny CSP-safe `theme-init.js` applies
+a saved override before the body paints, so there's no flash of the wrong theme.
 
 ---
 

@@ -4,9 +4,10 @@
 
 A desktop audiobook player for Windows, built with Electron. Plays local files with
 real chapter navigation, per-book resume, per-book playback speed, bookmarks,
-skip-silence, volume normalization, and a sleep timer. A **Continue listening** shelf, library filters, and
-**series grouping** keep the book you're on one click away, even in a library of
-thousands.
+skip-silence, volume normalization, and a sleep timer. A **Continue listening**
+shelf, library filters, and **series grouping** keep the book you're on one click
+away, even in a library of thousands. Light and dark themes, following the system
+by default.
 
 The name is *tome* + *light* — reading old tomes by candlelight.
 
@@ -192,6 +193,15 @@ instant speech returns — no hard cut. It stacks on your per-book speed (capped
 playback stays intelligible) and keeps working while the app is in the
 background. On a long book with lots of pauses this reclaims a meaningful chunk
 of time.
+
+## Theme
+
+Follows the OS light/dark preference until you choose otherwise. The ☀/☾ button
+in the top bar toggles between light and dark; once you click it, that choice is
+remembered (`localStorage`) and applied before the window paints, so there's no
+flash of the wrong theme on launch. To go back to following the system, clear it:
+`localStorage.removeItem('theme')` in DevTools, or delete `Local Storage` under
+the app's data folder.
 
 ## Volume normalization
 
