@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
 
 const { USER_DATA, LIBRARY_FILE, PROGRESS_FILE, BOOKMARKS_FILE, DATA_ROOT, COVER_CACHE } = require('./paths');
 
@@ -115,6 +115,77 @@ function createWindow() {
   });
 
   mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+let aboutWindow = null;
+
+/** A small window showing the logo, version and links. */
+function openAbout() {
+  if (aboutWindow) { aboutWindow.focus(); return; }
+
+  aboutWindow = new BrowserWindow({
+    width: 520,
+    height: 520,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    parent: mainWindow ?? undefined,
+    modal: Boolean(mainWindow),
+    backgroundColor: '#12121a',
+    title: 'About Tomelight',
+    icon: path.join(__dirname, '..', '..', 'build', 'icon.ico'),
+    autoHideMenuBar: true,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  aboutWindow.setMenu(null);
+  aboutWindow.loadFile(
+    path.join(__dirname, '..', 'renderer', 'about.html'),
+    { query: { v: app.getVersion() } },
+  );
+  aboutWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  aboutWindow.on('closed', () => { aboutWindow = null; });
+}
+
+/**
+ * Replace Electron's default menu (Reload, DevTools, Zoom, sample Help links…)
+ * with a small app-focused one. Edit is kept so copy/paste works in the search
+ * box and bookmark notes.
+ */
+function buildMenu() {
+  const template = [
+    {
+      label: 'File',
+      submenu: [
+        { label: 'Open data folder', click: () => shell.openPath(DATA_ROOT) },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [{ role: 'togglefullscreen' }],
+    },
+    {
+      label: 'Help',
+      submenu: [{ label: 'About Tomelight', click: () => openAbout() }],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 async function runScan() {
@@ -275,6 +346,7 @@ app.whenReady().then(async () => {
   if (normalizeCoverPaths(libraryStore.get())) libraryStore.flush();
   registerMediaProtocol(getAllowedRoots);
   registerIpc();
+  buildMenu();
   createWindow();
 
   app.on('activate', () => {
