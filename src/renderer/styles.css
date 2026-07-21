@@ -472,3 +472,26 @@ select {
 ::-webkit-scrollbar { width: 11px; }
 ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 6px; border: 3px solid var(--bg); }
 ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
+
+/* ---------- Undo toast ---------- */
+.toast {
+  position: fixed; left: 50%; bottom: calc(var(--player-h) + 20px);
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 14px;
+  background: var(--bg-elev-2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px 10px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  z-index: 30;
+  animation: toast-in .18s ease;
+}
+.toast-msg { font-size: 13px; color: var(--text); white-space: nowrap; }
+.toast-undo {
+  background: var(--accent-soft); border: 1px solid transparent; color: var(--accent);
+  padding: 5px 12px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 600;
+  white-space: nowrap;
+}
+.toast-undo:hover { border-color: var(--accent); }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}

@@ -343,6 +343,23 @@ function registerIpc() {
     return map;
   });
 
+  /**
+   * Re-insert a specific, previously-existing bookmark object as-is (same id,
+   * label, note, createdAt) — the "Undo" side of bookmarks:remove. Distinct
+   * from bookmarks:add, which always mints a fresh id/createdAt for a new one.
+   */
+  ipcMain.handle('bookmarks:restore', (_event, { bookId, bookmark }) => {
+    if (typeof bookId !== 'string' || !bookmark || typeof bookmark.id !== 'string') {
+      return bookmarksStore.get();
+    }
+    const map = { ...bookmarksStore.get() };
+    const list = map[bookId] ? [...map[bookId]] : [];
+    if (!list.some((b) => b.id === bookmark.id)) list.push(bookmark);
+    map[bookId] = list;
+    bookmarksStore.set(map);
+    return map;
+  });
+
   ipcMain.handle('normalization:save', (_event, { bookId, gain }) => {
     if (typeof bookId !== 'string' || typeof gain !== 'number' || !Number.isFinite(gain)) return;
     const map = { ...normalizationStore.get() };

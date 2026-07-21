@@ -17,6 +17,7 @@ const el = {
   bookCover: $('bookCover'), bookTitle: $('bookTitle'), bookAuthor: $('bookAuthor'),
   bookSub: $('bookSub'), bookDesc: $('bookDesc'), chapterList: $('chapterList'),
   chapterCount: $('chapterCount'), resetProgressBtn: $('resetProgressBtn'),
+  toast: $('toast'), toastMsg: $('toastMsg'), toastUndo: $('toastUndo'),
   bookmarkBtn: $('bookmarkBtn'), bookmarkHereBtn: $('bookmarkHereBtn'),
   bookmarkList: $('bookmarkList'), bookmarkCount: $('bookmarkCount'),
   player: $('player'), audio: $('audio'), playBtn: $('playBtn'), seek: $('seek'),
@@ -159,6 +160,39 @@ function buildDisplayItems(books) {
   }
   return items;
 }
+
+/* ---------------- undo toast ---------------- */
+
+const TOAST_MS = 6000;
+let toastTimer = null;
+let toastUndoFn = null;
+
+/**
+ * Show a brief "<message> [Undo]" toast. The action has already happened by the
+ * time this is called — `undoFn` reverses it if the user clicks Undo before the
+ * toast times out. Showing a new toast silently drops any pending one's undo
+ * window, matching the usual behavior of undo-toasts elsewhere (e.g. Gmail).
+ */
+function showToast(message, undoFn) {
+  clearTimeout(toastTimer);
+  toastUndoFn = undoFn;
+  el.toastMsg.textContent = message;
+  el.toast.classList.remove('hidden');
+  toastTimer = setTimeout(hideToast, TOAST_MS);
+}
+
+function hideToast() {
+  clearTimeout(toastTimer);
+  toastTimer = null;
+  toastUndoFn = null;
+  el.toast.classList.add('hidden');
+}
+
+el.toastUndo.addEventListener('click', async () => {
+  const fn = toastUndoFn;
+  hideToast();
+  if (fn) await fn();
+});
 
 /* ---------------- helpers ---------------- */
 
@@ -671,6 +705,7 @@ function buildBookmarkRow(book, bm) {
   del.addEventListener('click', async () => {
     state.bookmarks = await window.api.removeBookmark({ bookId: book.id, id: bm.id });
     refreshBookmarksView();
+    showToast('Bookmark deleted.', () => restoreBookmark(book.id, bm));
   });
   actions.append(del);
 
@@ -705,6 +740,15 @@ async function saveBookmark(bookId, id, fields) {
 /** Re-render the bookmarks list if its book is the one on screen. */
 function refreshBookmarksView() {
   if (state.current) renderBookmarks(state.current);
+}
+
+/**
+ * Undo side of a bookmark delete: puts the exact same object back (same id,
+ * label, note, createdAt) rather than minting a new bookmark via addBookmark.
+ */
+async function restoreBookmark(bookId, bookmark) {
+  state.bookmarks = await window.api.restoreBookmark({ bookId, bookmark });
+  refreshBookmarksView();
 }
 
 /**
@@ -1388,11 +1432,33 @@ el.addFolderBtn.addEventListener('click', () => window.api.addFolder().then((nex
 el.emptyAddBtn.addEventListener('click', () => window.api.addFolder().then(applyState));
 el.rescanBtn.addEventListener('click', () => window.api.rescan().then(applyState));
 
+/** Undo side of "Reset progress": puts the exact prior position/speed back. */
+async function restoreProgress(book, previous) {
+  state.progress[book.id] = previous;
+  await window.api.saveProgress({
+    bookId: book.id,
+    position: previous.position,
+    duration: previous.duration,
+    speed: previous.speed,
+  });
+  if (state.playing?.id === book.id) {
+    applySpeed(previous.speed ?? 1);
+    seekTo(previous.position, { autoplay: false });
+  }
+  renderLibrary();
+}
+
 el.resetProgressBtn.addEventListener('click', async () => {
   if (!state.current) return;
-  state.progress = await window.api.clearProgress(state.current.id);
-  if (state.playing?.id === state.current.id) seekTo(0, { autoplay: false });
+  const book = state.current;
+  const previous = state.progress[book.id];
+  if (!previous) return; // nothing was recorded — nothing to reset or undo
+
+  state.progress = await window.api.clearProgress(book.id);
+  if (state.playing?.id === book.id) seekTo(0, { autoplay: false });
   renderLibrary();
+
+  showToast('Progress reset.', () => restoreProgress(book, previous));
 });
 
 el.bookmarkBtn.addEventListener('click', () => addBookmark());
@@ -1421,6 +1487,7 @@ document.addEventListener('keydown', (e) => {
     case 'Escape':
       if (!el.sleepMenu.classList.contains('hidden')) openSleepMenu(false);
       else if (!el.foldersMenu.classList.contains('hidden')) openFoldersMenu(false);
+      else if (!el.toast.classList.contains('hidden')) hideToast();
       else if (el.libraryView.classList.contains('hidden')) goBack();
       break;
     default: break;

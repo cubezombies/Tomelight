@@ -133,12 +133,16 @@ match a folder like `E:\Books\Fan` against books actually under
 `E:\Books\Fantasy`. Replaced with a path-boundary-safe check
 (`isUnderFolder` in `main.js`), unit-tested directly.
 
-### 11. Confirm before destructive actions — **S** ⚠️
-"Reset progress" and a bookmark's 🗑 both fire immediately on click — no
-confirmation, no undo. Losing your position in a 40-hour book (or a bookmark
-with notes) to one misclick is a real, easy-to-hit failure mode with the current
-UI. A simple `confirm()`-style inline "Are you sure?" state (or a brief "Undo"
-toast after the action) closes this cheaply.
+### 11. Confirm before destructive actions — **shipped** ✅
+Went with the **Undo toast** option rather than a blocking `confirm()` dialog —
+both actions are frequent and fully reversible (unlike removing a folder, which
+can't be undone without a 40-minute rescan and got a native confirm instead), so
+a dialog on every click would have been needless friction. "Reset progress" and
+a bookmark's 🗑 now act immediately and show a 6s "Undo" toast; clicking it
+restores the **exact** prior state — same position, speed, and (for bookmarks)
+the same id/label/note/createdAt, via a new `bookmarks:restore` IPC rather than
+re-adding as a fresh bookmark. A second toast silently replaces a pending one
+(matching Gmail-style undo conventions); `Escape` dismisses it early.
 
 ### 12. Backup / export of app data — **S/M** ⚠️
 Progress, bookmarks, and normalization gains each live in their own JSON file
@@ -344,10 +348,10 @@ A pragmatic order that front-loads visible value and unblocks later work:
    differentiators, once the data layer can hold their output.
 
 **Out-of-band priority:** items 10–12 (folder management — shipped; confirm-
-before-destroy; backup/export — all Tier 1, marked ⚠️) protect against real data
-loss or were dead-code gaps rather than missing polish, so the remaining two are
-worth doing whenever they're picked up rather than waiting for their slot in the
-sequence above.
+before-destroy — shipped; backup/export — Tier 1, marked ⚠️) protect against real
+data loss or were dead-code gaps rather than missing polish. Only item 12
+remains, worth doing whenever it's picked up rather than waiting for its slot in
+the sequence above.
 
 ---
 

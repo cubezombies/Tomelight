@@ -187,6 +187,12 @@ them. Every manual pause also drops a single rolling **"Last stop"** marker so y
 can always find where you set the book down — editing it makes it permanent.
 Bookmarks are stored in `bookmarks.json` in the data folder.
 
+Deleting one doesn't ask first — it shows a brief **Undo** toast instead, since a
+delete you didn't mean is a one-click fix rather than something worth interrupting
+you to confirm. The same applies to **Reset progress** in the book view. Undo
+restores the exact bookmark or the exact position/speed you had, not an
+approximation.
+
 ## Skip silence
 
 The ⏩ button (or `S`) shortens the dead air in a book. The audio is routed
