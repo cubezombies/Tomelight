@@ -144,13 +144,21 @@ the same id/label/note/createdAt, via a new `bookmarks:restore` IPC rather than
 re-adding as a fresh bookmark. A second toast silently replaces a pending one
 (matching Gmail-style undo conventions); `Escape` dismisses it early.
 
-### 12. Backup / export of app data — **S/M** ⚠️
-Progress, bookmarks, and normalization gains each live in their own JSON file
-under the data folder (`progress.json`, `bookmarks.json`, `normalization.json`)
-with no backup path — delete or corrupt that folder and months of reading
-position and notes are gone. A "Backup now" (zip the three files) and "Restore
-from backup" action, reachable from Help or the data-folder area, is cheap
-insurance and pairs naturally with the existing "Open data folder" menu item.
+### 12. Backup / export of app data — **shipped** ✅
+**File → Backup data…** / **Restore from backup…**, next to the existing "Open
+data folder". Bundles the three stores into one timestamped JSON envelope rather
+than a real zip — no archive library needed, and it stays human-inspectable —
+defaulting to `D:\Claude\Tomelight-Backups`, a **sibling** of the data folder so
+deleting/corrupting the live folder can't take the backup with it. Restore reads
+and validates the file, shows what it contains (counts, backup date) in a native
+confirm dialog, and only applies on confirmation — this replaces current data and
+can't be undone, so it got the same treatment as folder removal rather than the
+Undo-toast treatment (items 10/11), which only fits reversible actions.
+*Tested:* the bundle/validate/restore logic directly against throwaway temp
+files (16 checks — round-trip fidelity, rejection of a wrong app name, a missing
+section, and an unrelated JSON file) rather than the real data folder, since the
+native save/open dialogs this feature triggers can't be driven through the
+CDP-based testing used elsewhere in this project.
 
 ### 13. Customizable skip amounts — **S**
 The back/forward skip is fixed at 30s (and 5 min with Shift). Real-world
@@ -347,11 +355,9 @@ A pragmatic order that front-loads visible value and unblocks later work:
 6. **Whisper transcription & search, read-along** (Tier 2: 1, 6) — the flagship
    differentiators, once the data layer can hold their output.
 
-**Out-of-band priority:** items 10–12 (folder management — shipped; confirm-
-before-destroy — shipped; backup/export — Tier 1, marked ⚠️) protect against real
-data loss or were dead-code gaps rather than missing polish. Only item 12
-remains, worth doing whenever it's picked up rather than waiting for its slot in
-the sequence above.
+**Out-of-band priority:** items 10–12 (folder management, confirm-before-destroy,
+backup/export — all ⚠️, all shipped) protected against real data loss or were
+dead-code gaps rather than missing polish. All three are now done.
 
 ---
 

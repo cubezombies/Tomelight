@@ -15,4 +15,8 @@ module.exports = {
   PROGRESS_FILE: path.join(DATA_ROOT, 'progress.json'),
   BOOKMARKS_FILE: path.join(DATA_ROOT, 'bookmarks.json'),
   NORMALIZATION_FILE: path.join(DATA_ROOT, 'normalization.json'),
+  // Default location backups are offered/looked for. A sibling of DATA_ROOT
+  // (not inside it) on purpose: deleting or corrupting the live data folder
+  // must not take the backups down with it.
+  BACKUP_DIR: path.join(path.dirname(DATA_ROOT), 'Tomelight-Backups'),
 };

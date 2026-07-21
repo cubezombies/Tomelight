@@ -84,15 +84,29 @@ redirected with the `TOMELIGHT_DATA_ROOT` environment variable.
 
 ```
 D:\Claude\Tomelight\
-  userData\       Electron/Chromium profile and caches
-  covers\         extracted cover art
-  library.json    scanned library
-  progress.json   per-book listening position
-  bookmarks.json  per-book bookmarks
+  userData\             Electron/Chromium profile and caches
+  covers\               extracted cover art
+  library.json          scanned library
+  progress.json         per-book listening position, speed
+  bookmarks.json        per-book bookmarks
+  normalization.json    per-book measured loudness gain
 ```
 
 Scanning a large library takes a few minutes the first time. Results are cached
 against each file's size and mtime, so rescans only reparse what changed.
+
+### Backup and restore
+
+**File → Backup data…** bundles `progress.json`, `bookmarks.json`, and
+`normalization.json` into one timestamped JSON file and lets you choose where to
+save it — deliberately defaulting to `D:\Claude\Tomelight-Backups`, a sibling of
+the data folder rather than something inside it, so deleting or corrupting the
+live data folder can't take the backup down with it too.
+
+**File → Restore from backup…** reads a backup file, shows what it contains
+(book counts, when it was made) in a confirmation dialog, and — only if you
+confirm — replaces your current progress, bookmarks, and normalization data with
+it. This can't be undone, so it's worth being sure before confirming.
 
 To scan without launching the app (useful for a first run):
 

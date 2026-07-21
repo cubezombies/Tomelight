@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
 
-const { USER_DATA, LIBRARY_FILE, PROGRESS_FILE, BOOKMARKS_FILE, NORMALIZATION_FILE, DATA_ROOT, COVER_CACHE } = require('./paths');
+const { USER_DATA, LIBRARY_FILE, PROGRESS_FILE, BOOKMARKS_FILE, NORMALIZATION_FILE, DATA_ROOT, COVER_CACHE, BACKUP_DIR } = require('./paths');
 
 app.setName('Tomelight');
 
@@ -175,6 +175,121 @@ function openAbout() {
 }
 
 /**
+ * Bundle progress, bookmarks, and normalization gains into one JSON file and
+ * let the user choose where to save it — insurance against the data folder
+ * being deleted or corrupted. A single JSON envelope rather than a zip: these
+ * are three small plain-object stores already held in memory, so wrapping them
+ * in one object needs no archive library and stays human-inspectable.
+ */
+async function createBackup() {
+  if (!mainWindow) return;
+
+  try {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  } catch {
+    // Best effort — the save dialog still works even if this default doesn't exist.
+  }
+
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Backup Tomelight data',
+    defaultPath: path.join(BACKUP_DIR, `tomelight-backup-${dateStr}.json`),
+    filters: [{ name: 'Tomelight Backup', extensions: ['json'] }],
+  });
+  if (canceled || !filePath) return;
+
+  const bundle = {
+    app: 'Tomelight',
+    formatVersion: 1,
+    exportedAt: new Date().toISOString(),
+    progress: progressStore.get(),
+    bookmarks: bookmarksStore.get(),
+    normalization: normalizationStore.get(),
+  };
+
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(bundle, null, 2), 'utf8');
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      message: 'Backup saved',
+      detail: `Progress, bookmarks, and normalization data were saved to:\n${filePath}`,
+    });
+  } catch (err) {
+    dialog.showErrorBox('Backup failed', err.message);
+  }
+}
+
+/**
+ * Restore progress/bookmarks/normalization from a previously created backup.
+ * Reads and validates the file first, then confirms via a native dialog before
+ * overwriting anything — this replaces current data and cannot be undone, so it
+ * gets the same confirm-before-destroy treatment as removing a library folder.
+ */
+async function restoreBackup() {
+  if (!mainWindow) return;
+
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: 'Restore Tomelight data from backup',
+    defaultPath: BACKUP_DIR,
+    properties: ['openFile'],
+    filters: [{ name: 'Tomelight Backup', extensions: ['json'] }],
+  });
+  if (canceled || !filePaths.length) return;
+
+  let bundle;
+  try {
+    bundle = JSON.parse(fs.readFileSync(filePaths[0], 'utf8'));
+  } catch (err) {
+    dialog.showErrorBox('Restore failed', `Could not read that file as a backup:\n${err.message}`);
+    return;
+  }
+
+  const isValid = bundle && bundle.app === 'Tomelight'
+    && bundle.progress && typeof bundle.progress === 'object'
+    && bundle.bookmarks && typeof bundle.bookmarks === 'object'
+    && bundle.normalization && typeof bundle.normalization === 'object';
+  if (!isValid) {
+    dialog.showErrorBox('Restore failed', 'That file does not look like a Tomelight backup.');
+    return;
+  }
+
+  const bookCount = Object.keys(bundle.progress).length;
+  const bookmarkCount = Object.values(bundle.bookmarks)
+    .reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
+  const normCount = Object.keys(bundle.normalization).length;
+  const when = bundle.exportedAt ? new Date(bundle.exportedAt).toLocaleString() : 'an unknown time';
+
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['Cancel', 'Restore'],
+    defaultId: 0,
+    cancelId: 0,
+    message: 'Restore from this backup?',
+    detail:
+      `This backup was made ${when} and contains progress for ${bookCount} book(s), `
+      + `${bookmarkCount} bookmark(s), and normalization data for ${normCount} book(s).\n\n`
+      + 'Restoring will REPLACE your current progress, bookmarks, and normalization '
+      + 'data. This cannot be undone.',
+  });
+  if (response !== 1) return;
+
+  progressStore.set(bundle.progress);
+  bookmarksStore.set(bundle.bookmarks);
+  normalizationStore.set(bundle.normalization);
+  progressStore.flushSync();
+  bookmarksStore.flushSync();
+  normalizationStore.flushSync();
+
+  mainWindow.webContents.send('library:changed', currentState());
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    message: 'Backup restored',
+    detail: `Restored progress for ${bookCount} book(s), ${bookmarkCount} bookmark(s), `
+      + `and normalization data for ${normCount} book(s).`,
+  });
+}
+
+/**
  * Replace Electron's default menu (Reload, DevTools, Zoom, sample Help links…)
  * with a small app-focused one. Edit is kept so copy/paste works in the search
  * box and bookmark notes.
@@ -185,6 +300,9 @@ function buildMenu() {
       label: 'File',
       submenu: [
         { label: 'Open data folder', click: () => shell.openPath(DATA_ROOT) },
+        { type: 'separator' },
+        { label: 'Backup data…', click: () => createBackup() },
+        { label: 'Restore from backup…', click: () => restoreBackup() },
         { type: 'separator' },
         { role: 'quit' },
       ],
