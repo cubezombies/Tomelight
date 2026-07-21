@@ -7,6 +7,8 @@ const el = {
   grid: $('grid'), emptyState: $('emptyState'), search: $('search'),
   continueSection: $('continueSection'), continueRow: $('continueRow'),
   libraryToolbar: $('libraryToolbar'), filterTabs: $('filterTabs'), filterCount: $('filterCount'),
+  groupToggle: $('groupToggle'),
+  seriesView: $('seriesView'), seriesTitle: $('seriesTitle'), seriesSub: $('seriesSub'), seriesGrid: $('seriesGrid'),
   libraryView: $('libraryView'), bookView: $('bookView'),
   viewTitle: $('viewTitle'), backBtn: $('backBtn'), scanStatus: $('scanStatus'),
   addFolderBtn: $('addFolderBtn'), emptyAddBtn: $('emptyAddBtn'), rescanBtn: $('rescanBtn'),
@@ -38,7 +40,11 @@ const state = {
   activeChapter: -1,
   seeking: false,
   filter: 'all',       // library filter: all | progress | finished | new
+  groupSeries: localStorage.getItem('groupSeries') === '1',
+  viewingSeries: null, // the series group currently shown in the series view
+  bookReturnsToSeries: null, // where the book view's back button should return
   pausedAt: 0,         // timestamp of the last pause, for resume auto-rewind
+  displayItems: [],    // grid items (book cards and series tiles) after filtering
   filtered: [],        // books matching the current search
   gridShown: 0,        // how many cards are currently in the DOM
   userVolume: 1,       // volume the user set; audio volume = this * sleep fade
@@ -53,6 +59,95 @@ const state = {
 let gridObserver = null;
 const SLEEP_FADE_SEC = 20;   // gentle fade over the final stretch
 const SLEEP_REWIND_SEC = 30; // rewind on resume after the timer stops you
+
+/* ---------------- series detection ----------------
+ * Series name + volume number are derived from the book title (and author),
+ * which we already have — no re-scan or main-process work needed. Grouping is
+ * conservative: a series tile only forms when 2+ books share a series name AND
+ * author, which keeps multi-author franchises (e.g. "Star Wars") from
+ * collapsing into one meaningless pile.
+ */
+const SERIES_SEP = '[:\\-\\u2013\\u2014]';
+const SERIES_BOOKWORD = '(?:Book|Vol\\.?|Volume|Part|Episode)';
+const SERIES_PATTERNS = [
+  // "Warmage: Spellmonger, Book 2" | "The Way of Kings - The Stormlight Archive, Book 1"
+  [new RegExp(`^(.*?)\\s*${SERIES_SEP}\\s*(.+?),?\\s+${SERIES_BOOKWORD}\\s*(\\d+)`, 'i'), 2, 3],
+  // "(The Other Realm #7)" | "(Cradle, Book 3)"
+  [new RegExp(`\\((?:The\\s+)?(.+?)[,\\s]+(?:${SERIES_BOOKWORD}\\s*)?#?\\s*(\\d+)\\)`, 'i'), 1, 2],
+  // "The Other Realm 07 - Glimmer of the Other" (number in the middle)
+  [new RegExp(`^(?:.*?\\s${SERIES_SEP}\\s)?(?:The\\s+)?(.+?)\\s+(\\d{1,3})\\s*${SERIES_SEP}\\s`, 'i'), 1, 2],
+  // "... Series, Book 4"
+  [new RegExp(`^.*?,?\\s*(?:The\\s+)?(.+?)\\s+Series,?\\s+${SERIES_BOOKWORD}\\s*(\\d+)`, 'i'), 1, 2],
+  // trailing "... Book 3" / "... #3"
+  [new RegExp(`^(.+?)\\s+(?:${SERIES_BOOKWORD}|#)\\s*(\\d+)\\s*$`, 'i'), 1, 2],
+];
+const SERIES_BLOCKLIST = new Set([
+  'star wars', 'complete', 'unabridged', 'the', 'a', 'novel', 'box set',
+  'collection', 'book', 'dead', 'audiobook', 'series',
+]);
+
+function cleanSeriesName(s) {
+  return s
+    .replace(/\s*\(unabridged\)\s*/i, '')
+    .replace(/^the\s+/i, '')
+    .replace(/\s+series\s*$/i, '')
+    .replace(/[\s,:–-]+(?:Book|Vol\.?|Volume|Part|Episode)\s*$/i, '')
+    .replace(/[\s,:–-]+$/, '')
+    .trim();
+}
+
+/** @returns {{series: string, index: number} | null} */
+function parseSeries(title) {
+  for (const [re, sg, ig] of SERIES_PATTERNS) {
+    const m = re.exec(title);
+    if (!m) continue;
+    const series = cleanSeriesName(m[sg]);
+    const index = Number(m[ig]);
+    if (series && series.length >= 3 && index > 0 && index < 200
+        && !SERIES_BLOCKLIST.has(series.toLowerCase())) {
+      return { series, index };
+    }
+  }
+  return null;
+}
+
+const seriesNorm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const seriesKeyFor = (series, author) => `${seriesNorm(series)}::${seriesNorm(author)}`;
+
+/**
+ * Turn a flat book list into display items: a series with 2+ present volumes
+ * becomes one `series` tile (emitted at the position of its first volume);
+ * everything else stays an individual `book` card. Order is otherwise preserved.
+ */
+function buildDisplayItems(books) {
+  const groups = new Map();
+  for (const b of books) {
+    const p = parseSeries(b.title);
+    if (!p) continue;
+    const key = seriesKeyFor(p.series, b.author);
+    if (!groups.has(key)) groups.set(key, { key, name: p.series, author: b.author, volumes: [] });
+    groups.get(key).volumes.push({ book: b, index: p.index });
+  }
+  const realSeries = new Set([...groups.values()].filter((g) => g.volumes.length >= 2).map((g) => g.key));
+
+  const items = [];
+  const emitted = new Set();
+  for (const b of books) {
+    const p = parseSeries(b.title);
+    const key = p ? seriesKeyFor(p.series, b.author) : null;
+    if (key && realSeries.has(key)) {
+      if (!emitted.has(key)) {
+        emitted.add(key);
+        const g = groups.get(key);
+        g.volumes.sort((x, y) => x.index - y.index);
+        items.push({ type: 'series', series: g });
+      }
+    } else {
+      items.push({ type: 'book', book: b });
+    }
+  }
+  return items;
+}
 
 /* ---------------- helpers ---------------- */
 
@@ -79,7 +174,7 @@ function formatDurationLong(seconds) {
 
 const GRID_PAGE = 120;
 
-function buildCard(book) {
+function buildCard(book, { badge } = {}) {
   const saved = state.progress[book.id];
   const pct = saved && book.duration
     ? Math.min(100, (saved.position / book.duration) * 100)
@@ -103,6 +198,12 @@ function buildCard(book) {
     ph.className = 'placeholder';
     ph.textContent = '🎧';
     art.append(ph);
+  }
+  if (badge) {
+    const b = document.createElement('div');
+    b.className = 'card-badge';
+    b.textContent = badge;
+    art.append(b);
   }
   if (pct > 0) {
     const bar = document.createElement('div');
@@ -171,6 +272,51 @@ function renderContinueShelf() {
   for (const book of inProgress) el.continueRow.append(buildCard(book));
 }
 
+/** A tile standing in for a whole series; opens the series view on click. */
+function buildSeriesTile(group) {
+  const first = group.volumes.find((v) => v.book.coverUrl) ?? group.volumes[0];
+
+  const card = document.createElement('div');
+  card.className = 'card series-card';
+  card.tabIndex = 0;
+  card.setAttribute('role', 'button');
+
+  const art = document.createElement('div');
+  art.className = 'series-art';
+  if (first.book.coverUrl) {
+    const img = document.createElement('img');
+    img.className = 'series-cover';
+    img.src = first.book.coverUrl;
+    img.alt = `${group.name} series`;
+    img.loading = 'lazy';
+    art.append(img);
+  } else {
+    const ph = document.createElement('div');
+    ph.className = 'series-cover placeholder';
+    ph.textContent = '📚';
+    art.append(ph);
+  }
+  const badge = document.createElement('div');
+  badge.className = 'series-badge';
+  badge.textContent = `${group.volumes.length}`;
+  art.append(badge);
+
+  const title = document.createElement('div');
+  title.className = 'card-title';
+  title.textContent = group.name;
+
+  const author = document.createElement('div');
+  author.className = 'card-author';
+  author.textContent = group.author;
+
+  card.append(art, title, author);
+  card.addEventListener('click', () => openSeries(group));
+  card.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSeries(group); }
+  });
+  return card;
+}
+
 /**
  * A 10k-book library is far too many cards to put in the DOM at once (it costs
  * ~2 GB). Render in pages and append the next one when a sentinel near the
@@ -185,9 +331,17 @@ function renderGrid() {
     return b.title.toLowerCase().includes(query) || b.author.toLowerCase().includes(query);
   });
 
+  state.displayItems = state.groupSeries
+    ? buildDisplayItems(state.filtered)
+    : state.filtered.map((book) => ({ type: 'book', book }));
+
+  const seriesCount = state.displayItems.filter((i) => i.type === 'series').length;
+
   el.emptyState.classList.toggle('hidden', state.books.length > 0);
   el.libraryToolbar.classList.toggle('hidden', state.books.length === 0);
-  el.filterCount.textContent = `${state.filtered.length.toLocaleString()} book${state.filtered.length === 1 ? '' : 's'}`;
+  el.filterCount.textContent = seriesCount
+    ? `${state.filtered.length.toLocaleString()} books · ${seriesCount} series`
+    : `${state.filtered.length.toLocaleString()} book${state.filtered.length === 1 ? '' : 's'}`;
 
   gridObserver?.disconnect();
   el.grid.replaceChildren();
@@ -196,14 +350,17 @@ function renderGrid() {
 }
 
 function appendGridPage() {
-  const books = state.filtered;
-  const end = Math.min(state.gridShown + GRID_PAGE, books.length);
+  const items = state.displayItems;
+  const end = Math.min(state.gridShown + GRID_PAGE, items.length);
   const frag = document.createDocumentFragment();
-  for (let i = state.gridShown; i < end; i += 1) frag.append(buildCard(books[i]));
+  for (let i = state.gridShown; i < end; i += 1) {
+    const item = items[i];
+    frag.append(item.type === 'series' ? buildSeriesTile(item.series) : buildCard(item.book));
+  }
   el.grid.append(frag);
   state.gridShown = end;
 
-  if (end < books.length) {
+  if (end < items.length) {
     const sentinel = document.createElement('div');
     sentinel.className = 'grid-sentinel';
     el.grid.append(sentinel);
@@ -218,15 +375,52 @@ function appendGridPage() {
   }
 }
 
+/* ---------------- series view ---------------- */
+
+function openSeries(group) {
+  state.viewingSeries = group;
+  el.libraryView.classList.add('hidden');
+  el.bookView.classList.add('hidden');
+  el.seriesView.classList.remove('hidden');
+  el.backBtn.classList.remove('hidden');
+  el.viewTitle.textContent = group.name;
+  el.main.scrollTop = 0;
+
+  const hours = group.volumes.reduce((sum, v) => sum + (v.book.duration || 0), 0) / 3600;
+  el.seriesTitle.textContent = group.name;
+  el.seriesSub.textContent = `${group.author} · ${group.volumes.length} books · ${Math.round(hours)} hrs`;
+
+  el.seriesGrid.replaceChildren();
+  for (const v of group.volumes) {
+    const card = buildCard(v.book, { badge: `#${v.index}` });
+    // Runs after the card's own openBook() (which clears the flag), so opening a
+    // volume returns here rather than to the library.
+    card.addEventListener('click', () => { state.bookReturnsToSeries = group; });
+    el.seriesGrid.append(card);
+  }
+}
+
 /* ---------------- book view ---------------- */
 
 function showLibrary() {
   state.current = null;
+  state.viewingSeries = null;
+  state.bookReturnsToSeries = null;
   el.libraryView.classList.remove('hidden');
   el.bookView.classList.add('hidden');
+  el.seriesView.classList.add('hidden');
   el.backBtn.classList.add('hidden');
   el.viewTitle.textContent = 'Library';
   renderLibrary();
+}
+
+/** Back button: return to the series view if we came from one, else the library. */
+function goBack() {
+  if (!el.bookView.classList.contains('hidden') && state.bookReturnsToSeries) {
+    openSeries(state.bookReturnsToSeries);
+  } else {
+    showLibrary();
+  }
 }
 
 function openBook(bookId) {
@@ -234,7 +428,9 @@ function openBook(bookId) {
   if (!book) return;
 
   state.current = book;
+  state.bookReturnsToSeries = null; // series volumes re-set this after this runs
   el.libraryView.classList.add('hidden');
+  el.seriesView.classList.add('hidden');
   el.bookView.classList.remove('hidden');
   el.backBtn.classList.remove('hidden');
   el.viewTitle.textContent = book.title;
@@ -847,8 +1043,16 @@ el.nextChapterBtn.addEventListener('click', () => jumpChapter(1));
 el.speed.addEventListener('change', () => { applySpeed(Number(el.speed.value)); flushProgress(); });
 el.volume.addEventListener('input', () => { state.userVolume = Number(el.volume.value); applyVolume(); });
 
-el.backBtn.addEventListener('click', showLibrary);
+el.backBtn.addEventListener('click', goBack);
 el.search.addEventListener('input', renderLibrary);
+
+el.groupToggle.addEventListener('click', () => {
+  state.groupSeries = !state.groupSeries;
+  localStorage.setItem('groupSeries', state.groupSeries ? '1' : '0');
+  el.groupToggle.setAttribute('aria-pressed', String(state.groupSeries));
+  el.main.scrollTop = 0;
+  renderGrid();
+});
 
 el.filterTabs.addEventListener('click', (e) => {
   const tab = e.target.closest('.filter-tab');
@@ -891,7 +1095,7 @@ document.addEventListener('keydown', (e) => {
       break;
     case 'Escape':
       if (!el.sleepMenu.classList.contains('hidden')) openSleepMenu(false);
-      else if (state.current) showLibrary();
+      else if (el.libraryView.classList.contains('hidden')) goBack();
       break;
     default: break;
   }
@@ -926,5 +1130,7 @@ window.api.onScanProgress(({ done, total, scanning }) => {
     : '';
   el.rescanBtn.disabled = scanning;
 });
+
+el.groupToggle.setAttribute('aria-pressed', String(state.groupSeries));
 
 window.api.getState().then(applyState);

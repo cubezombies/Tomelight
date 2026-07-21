@@ -42,7 +42,10 @@
           <button class="filter-tab" data-filter="finished" role="tab">Finished</button>
           <button class="filter-tab" data-filter="new" role="tab">Not started</button>
         </div>
-        <span id="filterCount" class="filter-count muted small"></span>
+        <div class="toolbar-right">
+          <span id="filterCount" class="filter-count muted small"></span>
+          <button id="groupToggle" class="btn group-toggle" title="Group books into series" aria-pressed="false">Group series</button>
+        </div>
       </div>
 
       <div id="grid" class="grid"></div>
@@ -69,6 +72,15 @@
 
       <h3 class="section-label">Chapters <span id="chapterCount" class="muted small"></span></h3>
       <ol id="chapterList" class="chapters"></ol>
+    </section>
+
+    <!-- Series -->
+    <section id="seriesView" class="hidden">
+      <div class="series-header">
+        <h2 id="seriesTitle"></h2>
+        <p id="seriesSub" class="muted"></p>
+      </div>
+      <div id="seriesGrid" class="grid"></div>
     </section>
   </main>
 

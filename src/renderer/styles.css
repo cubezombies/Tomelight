@@ -112,6 +112,49 @@ code { background: var(--bg-elev-2); padding: 1px 5px; border-radius: 4px; font-
 .filter-tab:hover { color: var(--text); }
 .filter-tab.active { background: var(--accent); color: #fff; }
 .filter-count { white-space: nowrap; }
+.toolbar-right { display: flex; align-items: center; gap: 14px; }
+.group-toggle { padding: 6px 12px; font-size: 13px; }
+.group-toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ---------- Series tile ---------- */
+.series-card { cursor: pointer; }
+.series-art {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 10px;
+}
+/* stacked-cards look: two offset plates behind the cover */
+.series-art::before, .series-art::after {
+  content: ""; position: absolute; inset: 0;
+  border-radius: 10px; background: var(--bg-elev-2); border: 1px solid var(--line);
+}
+.series-art::before { transform: translate(6px, 6px); }
+.series-art::after  { transform: translate(3px, 3px); }
+.series-cover {
+  position: relative; width: 100%; height: 100%; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--line); background: var(--bg-elev-2);
+  display: block;
+}
+.series-card:hover .series-cover { border-color: var(--accent); }
+.series-cover.placeholder {
+  display: flex; align-items: center; justify-content: center; font-size: 30px; color: var(--muted);
+}
+.series-badge {
+  position: absolute; top: 7px; right: 7px; z-index: 2;
+  background: rgba(18, 18, 26, .85); color: #fff; border: 1px solid var(--accent);
+  border-radius: 20px; padding: 2px 9px; font-size: 12px; font-weight: 600;
+}
+.series-card .card-title { margin-top: 14px; }
+.series-card .card-author::after { content: " · series"; color: var(--accent); }
+
+/* ---------- Series view ---------- */
+.series-header { margin-bottom: 22px; }
+.series-header h2 { margin: 0 0 6px; font-size: 24px; font-weight: 600; }
+.card-badge {
+  position: absolute; top: 7px; left: 7px; z-index: 2;
+  background: rgba(18, 18, 26, .85); color: var(--text);
+  border-radius: 6px; padding: 1px 7px; font-size: 12px; font-variant-numeric: tabular-nums;
+}
 
 /* ---------- Library grid ---------- */
 .grid {
@@ -235,6 +278,7 @@ code { background: var(--bg-elev-2); padding: 1px 5px; border-radius: 4px; font-
   border-top: 1px solid var(--line);
   padding: 10px 20px 14px;
   height: var(--player-h);
+  z-index: 5; /* keep it above card/series badges (z-index 2) that scroll under it */
 }
 
 .player-seek { display: flex; align-items: center; gap: 12px; }

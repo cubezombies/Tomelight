@@ -4,8 +4,8 @@
 
 A desktop audiobook player for Windows, built with Electron. Plays local files with
 real chapter navigation, per-book resume, per-book playback speed, bookmarks, and a
-sleep timer. A **Continue listening** shelf and library filters keep the book you're
-on one click away, even in a library of thousands.
+sleep timer. A **Continue listening** shelf, library filters, and **series grouping**
+keep the book you're on one click away, even in a library of thousands.
 
 The name is *tome* + *light* — reading old tomes by candlelight.
 
@@ -147,6 +147,21 @@ through, most-recently-played first, one click from resuming. Filter tabs (All /
 In progress / Finished / Not started) narrow the grid below. Each book remembers
 its own **playback speed**, and resuming after a pause **rewinds a few seconds**
 (more the longer you were away) so you don't lose the thread.
+
+### Series grouping
+
+The **Group series** toggle collapses the volumes of a series into a single tile
+(e.g. all 15 Spellmonger books become one), so a large library reads as series
+rather than a wall of covers. Click a tile to open the series and see its volumes
+in reading order; opening a volume and pressing Back returns you to the series.
+
+Series are detected from the book title and author — `"Warmage: Spellmonger,
+Book 2"` → *Spellmonger #2* — entirely in the app, with no re-scan. Grouping only
+forms a tile when **two or more books share a series name and author**, which
+keeps multi-author franchises (e.g. everything with "Star Wars" in the title) from
+collapsing into one meaningless pile. Books whose titles don't spell out a series
+(standalones, un-numbered novellas) stay as normal cards. On the real test library
+this groups ~360 series covering ~1,500 books; the rest show individually.
 
 ## Bookmarks
 

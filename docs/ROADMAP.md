@@ -31,6 +31,9 @@ Already shipped, so it is not repeated in the lists below:
 - **Per-book speed + auto-rewind** — each book remembers its playback speed;
   resuming rewinds a few seconds, scaled to how long you were paused
   (Tier 1 #5–#6, shipped).
+- **Series grouping** — a toggle collapses a series' volumes into one tile with a
+  drill-in series view; series name + index parsed from the title, author-guarded
+  against franchise over-grouping; renderer-only, no re-scan (Tier 1 #7, shipped).
 
 Known gaps carried forward as motivation: series volumes can share a display
 title, box sets stay whole, and merged `.m4b` parts collapse to one chapter each.
@@ -82,12 +85,13 @@ On resume, rewinds a few seconds scaled to how long you were paused (0 under 30s
 3s, 10s, up to 20s after an hour+). Kept separate from the sleep timer's fixed
 30s resume-rewind.
 
-### 7. Library organization: sort, filter, series & collections — **partly shipped**
-Filter tabs (All / In progress / Finished / Not started) ship. **Still open:**
-sort options (author / title / recently added / duration) and **series grouping**
-— collapse the 7 Stormlight or 17 Spellmonger books under one expandable tile,
-which also addresses the box-set and series-title limitations. Series grouping
-wants the sidecar/online metadata from Tier 3 to be automatic.
+### 7. Library organization: sort, filter, series & collections — **mostly shipped** ✅
+Filter tabs and **series grouping** (collapse a series' volumes into one tile, with
+a drill-in view) both ship — series parsed from the title, author-guarded. **Still
+open:** sort options (author / title / recently added / duration), and better
+series coverage. Title-parsing groups ~30% of books (~360 series); the misses are
+un-numbered series (Dune's prequels, standalone novellas) and folder-numbered
+books whose title omits the series — those want the sidecar/online metadata below.
 
 ### 8. "Continue listening" shelf + finished state — **shipped** ✅
 In-progress books surface in a row at the top of the library, most-recently-played
@@ -164,11 +168,16 @@ markers for single-file or few-file mp3 rips that currently show one flat chapte
 per file. Parse the sibling `.cue` to recover real chapter titles and offsets —
 a direct, high-value chapter-quality win for a big slice of the mp3 collection.
 
-### 2. Sidecar metadata: `.nfo`, `.opf`, `metadata.json` — **S/M**
-**505 `.nfo`** and many `.json`/`.opf` sidecars are present. Read them for
-series, volume number, narrator, description, and cover when embedded tags are
-poor. This is what powers automatic series grouping (Tier 1, item 7) without a
-network call.
+### 2. Sidecar metadata: `.nfo`, `.opf`, `metadata.json` — **M** (investigated)
+Coverage on the real library is thinner than hoped and does **not** meaningfully
+help series detection, which is why series grouping (Tier 1 #7) shipped from title
+parsing instead. What's actually there: **504 `.nfo`** — freeform text with Title
+/ Author / "Read By" (narrator) but *no* series field; **51 `.opf`** — Calibre
+metadata (has `calibre:series`) but sitting in `E-Books/` subfolders beside the
+ebook, not the audio; and rare **`metadata.abs`** (Audiobookshelf) which *does*
+carry a clean `series=`. The real win here is **narrator + description** from
+`.nfo`, and picking up `series` from a co-located `.abs`/`.opf` to fill gaps the
+title parser misses (Dune, folder-numbered books). Needs a re-scan to apply.
 
 ### 3. Auto-generate chapters for chapterless books — **M/L**
 Many mp3-folder books have no real chapters. Detect long silences to synthesize
