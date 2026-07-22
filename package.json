@@ -4,13 +4,17 @@
   "version": "0.1.0",
   "description": "Tomelight — a desktop audiobook player with m4b chapter support and a sleep timer",
   "main": "src/main/main.js",
+  "author": "cubezombies",
   "scripts": {
     "start": "electron .",
-    "icons": "node scripts/make-icons.cjs"
+    "icons": "node scripts/make-icons.cjs",
+    "pack": "electron-builder --dir --win --x64",
+    "dist": "electron-builder --win --x64"
   },
   "license": "MIT",
   "devDependencies": {
     "electron": "^34.0.0",
+    "electron-builder": "^26.15.3",
     "jimp": "^0.22.12",
     "png-to-ico": "^3.0.2"
   },
@@ -18,6 +22,42 @@
     "music-metadata": "^11.0.0"
   },
   "allowScripts": {
-    "electron@34.5.8": true
+    "electron@34.5.8": true,
+    "electron-winstaller@5.4.0": true
+  },
+  "build": {
+    "appId": "com.cubezombies.tomelight",
+    "productName": "Tomelight",
+    "copyright": "Copyright © 2026 cubezombies",
+    "asar": true,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "uninstallDisplayName": "Tomelight",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tomelight",
+      "artifactName": "Tomelight-Setup-${version}.${ext}",
+      "include": "build/installer.nsh"
+    }
   }
 }
