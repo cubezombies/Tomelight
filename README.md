@@ -222,6 +222,8 @@ src/main/
   mp4-chapters.js    MP4/M4B chapter + duration parser
   media-protocol.js  ab-media:// with byte-range support
   metadata-lookup.js Open Library search/description/cover fetch
+  updater.js         electron-updater wiring
+  taskbar.js         thumbbar buttons + jump list
   store.js           atomic JSON persistence
   preload.js         contextBridge API
 src/renderer/        UI (no framework)
@@ -291,6 +293,28 @@ above are unaffected by this feature.
 | `N` | Toggle volume normalization |
 | `T` | Open the sleep-timer menu |
 | `Esc` | Close the sleep menu, or go back to the library |
+
+## Windows media integration
+
+Tomelight shows up in the Windows media flyout (the popup on the volume
+overlay / `Win+G`-adjacent media panel) and the lock screen, with the current
+book's title, author, and cover, and the subtitle updates live to the current
+chapter as you listen. Hardware and keyboard media keys (play/pause,
+previous/next track) control playback the same way the in-app buttons do —
+"previous/next track" jumps a chapter, matching the ⏮/⏭ buttons. This is the
+standard [Media Session](https://developer.mozilla.org/en-US/docs/Web/API/Media_Session_API)
+web API, which Chromium wires up to Windows' System Media Transport Controls
+on its own — no extra setup needed.
+
+The taskbar button also gets its own **thumbnail-toolbar** (hover over the
+taskbar icon) with previous chapter / play-pause / next chapter buttons, and
+right-clicking the taskbar icon (or the Start tile, if pinned) shows a
+**Continue Listening** jump list of your most recently-played books — click
+one to jump straight to it, launching Tomelight if it isn't already running.
+The jump list depends on Windows' own "Show recently opened items in Start,
+Jump Lists, and File Explorer" setting (Settings → Personalization → Start);
+if that's off, the list just won't appear — nothing to configure on
+Tomelight's side.
 
 ## Finding your place
 

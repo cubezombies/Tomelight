@@ -85,6 +85,7 @@ const state = {
   trackIndex: -1,      // which file of a multi-track book is loaded
   pendingSeek: null,   // position to apply once the loading track reports metadata
   activeChapter: -1,
+  playingChapterIndex: -1, // like activeChapter, but for the OS media-session subtitle — tracks the playing book even when it's not the one currently open in the book view
   seeking: false,
   filter: 'all',       // library filter: all | progress | finished | new
   sort: localStorage.getItem('sort') || 'author',
@@ -978,6 +979,23 @@ function effectiveDuration(book) {
   return 0;
 }
 
+/**
+ * Surfaces the book to Windows' media flyout / lock screen (System Media
+ * Transport Controls) via the standard mediaSession web API — Chromium wires
+ * this up to the OS on its own, no native module needed. `album` starts
+ * empty and gets the current chapter name from updateTimeUI once playback
+ * reports a position, since that's more useful there than a static field.
+ */
+function setMediaSessionMetadata(book) {
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: book.title,
+    artist: book.author || '',
+    artwork: book.coverUrl ? [{ src: book.coverUrl, sizes: '512x512', type: 'image/jpeg' }] : [],
+  });
+  state.playingChapterIndex = -1; // force updateTimeUI to (re)set the chapter subtitle
+}
+
 function loadIntoPlayer(book) {
   if (state.playing?.id === book.id) return;
 
@@ -993,6 +1011,7 @@ function loadIntoPlayer(book) {
   el.nowTitle.textContent = book.title;
   el.nowChapter.textContent = book.author;
   el.timeTotal.textContent = formatTime(book.duration);
+  setMediaSessionMetadata(book);
 
   const saved = state.progress[book.id];
   applySpeed(saved?.speed ?? 1);
@@ -1287,6 +1306,18 @@ function updateTimeUI() {
       const prefix = book.kind === 'multi' ? `${idx + 1}/${book.chapters.length}` : `${idx + 1}`;
       el.nowChapter.textContent = `${prefix}. ${ch.title}`;
       if (state.current?.id === book.id) highlightChapter(idx);
+      if (idx !== state.playingChapterIndex && navigator.mediaSession?.metadata) {
+        state.playingChapterIndex = idx;
+        navigator.mediaSession.metadata.album = `${prefix}. ${ch.title}`;
+      }
+    }
+  }
+
+  if ('mediaSession' in navigator && Number.isFinite(total) && total > 0 && position <= total) {
+    try {
+      navigator.mediaSession.setPositionState({ duration: total, position, playbackRate: el.audio.playbackRate || 1 });
+    } catch {
+      // Chromium throws if duration/position momentarily disagree mid-seek — harmless, next tick corrects it.
     }
   }
 }
@@ -1480,19 +1511,28 @@ setInterval(sleepTick, 200);
 
 /* ---------------- events ---------------- */
 
-el.playBtn.addEventListener('click', () => {
+// Shared by the play button, the OS media keys (mediaSession), and the
+// taskbar thumbbar button, so "pause" always behaves the same way everywhere.
+function pauseWithBookmark() {
+  addBookmark({ auto: true });
+  el.audio.pause();
+}
+
+function togglePlayPause() {
   if (el.audio.paused) {
     el.audio.play().catch((err) => console.error('playback failed:', err));
   } else {
-    // Manual pause (button or spacebar): remember where we stopped.
-    addBookmark({ auto: true });
-    el.audio.pause();
+    pauseWithBookmark();
   }
-});
+}
+
+el.playBtn.addEventListener('click', togglePlayPause);
 
 el.audio.addEventListener('play', () => {
   el.playBtn.textContent = '❚❚';
   el.playBtn.setAttribute('aria-label', 'Pause');
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+  window.api.setPlayingState(true);
 
   // A Web Audio graph can only be built during/after a user gesture; first play
   // is our chance. Resume it too — the context suspends when idle.
@@ -1517,6 +1557,8 @@ el.audio.addEventListener('play', () => {
 el.audio.addEventListener('pause', () => {
   el.playBtn.textContent = '▶';
   el.playBtn.setAttribute('aria-label', 'Play');
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+  window.api.setPlayingState(false);
   state.pausedAt = Date.now();
   flushProgress();
 });
@@ -2086,4 +2128,39 @@ el.audio.preservesPitch = true;
 el.skipSilenceBtn.setAttribute('aria-pressed', String(state.skipSilence));
 el.normalizeBtn.setAttribute('aria-pressed', String(state.normalize));
 
-window.api.getState().then(applyState);
+/* ---------------- OS media integration ----------------
+ * mediaSession action handlers are set once here rather than per-book — they
+ * close over live state (state.playing, state.skipAmount) so they stay
+ * correct as playback moves between books. This is what makes the Windows
+ * media flyout, lock screen, and hardware/keyboard media keys work; the
+ * taskbar thumbbar buttons (main process, src/main/taskbar.js) are a
+ * separate native Shell feature and route through media:control instead,
+ * since only this renderer knows how to actually drive playback.
+ * ---------------- */
+
+if ('mediaSession' in navigator) {
+  navigator.mediaSession.setActionHandler('play', () => { el.audio.play().catch(() => {}); });
+  navigator.mediaSession.setActionHandler('pause', () => pauseWithBookmark());
+  navigator.mediaSession.setActionHandler('previoustrack', () => jumpChapter(-1));
+  navigator.mediaSession.setActionHandler('nexttrack', () => jumpChapter(1));
+  navigator.mediaSession.setActionHandler('seekbackward', () => seekTo(globalTime() - state.skipAmount));
+  navigator.mediaSession.setActionHandler('seekforward', () => seekTo(globalTime() + state.skipAmount));
+}
+
+window.api.onMediaControl((action) => {
+  if (action === 'prev') jumpChapter(-1);
+  else if (action === 'next') jumpChapter(1);
+  else if (action === 'playpause') togglePlayPause();
+});
+
+/** Opens a book by id if it's actually in the loaded library — used for both a jump-list launch and a jump-list click while already running. */
+function openBookIfExists(bookId) {
+  if (bookId && state.books.some((b) => b.id === bookId)) openBook(bookId);
+}
+window.api.onOpenBook(openBookIfExists);
+
+window.api.getState().then((s) => {
+  applyState(s);
+  // One-shot: only set when this launch came from a taskbar jump-list click.
+  window.api.getInitialOpenBook().then(openBookIfExists);
+});

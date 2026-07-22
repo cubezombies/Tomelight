@@ -1,13 +1,14 @@
 {
   "name": "tomelight",
   "productName": "Tomelight",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Tomelight — a desktop audiobook player with m4b chapter support and a sleep timer",
   "main": "src/main/main.js",
   "author": "cubezombies",
   "scripts": {
     "start": "electron .",
     "icons": "node scripts/make-icons.cjs",
+    "media-icons": "node scripts/make-media-icons.cjs",
     "pack": "electron-builder --dir --win --x64",
     "dist": "electron-builder --win --x64"
   },
@@ -44,6 +45,7 @@
     "files": [
       "src/**/*",
       "assets/**/*",
+      "build/media-icons/**/*",
       "package.json",
       "!**/*.map"
     ],

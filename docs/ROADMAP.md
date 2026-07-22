@@ -59,6 +59,11 @@ Already shipped, so it is not repeated in the lists below:
   Updates…** checks Releases manually (never automatic), auto-downloads a
   newer version in the background, and shows its change notes pulled from
   `CHANGELOG.md`. Shipped 2026-07-22.
+- **Windows SMTC + taskbar integration** — the media flyout, lock screen, and
+  hardware/keyboard media keys via `navigator.mediaSession`; taskbar
+  thumbnail-toolbar buttons (prev/play-pause/next chapter); a jump list of
+  recently-played books, backed by a proper single-instance lock (Tier 2 #2,
+  shipped). Shipped 2026-07-22.
 
 Known gaps carried forward as motivation: series volumes can share a display
 title, box sets stay whole, and merged `.m4b` parts collapse to one chapter each.
@@ -291,12 +296,37 @@ do surrounding-text transcription; essentially **no Windows player does this**.
 Transcription is a slow background job, which fits the existing task model.
 *Foundation for:* semantic bookmarks, "quote this passage", accessibility.
 
-### 2. Windows System Media Transport Controls (SMTC) — **M** ⭐
-Wire up the Windows media flyout and hardware/keyboard media keys (play/pause,
-next/prev chapter, cover + title on the volume overlay and lock screen). Most
-Electron audiobook apps skip this and feel un-native as a result. Achievable via
-`electron`'s media-session support or a small native module. Add taskbar
-thumbnail-toolbar buttons and a jump list of recent books while in that layer.
+### 2. Windows System Media Transport Controls (SMTC) — **shipped** ✅
+The Windows media flyout, lock screen, and hardware/keyboard media keys
+(play/pause, next/prev chapter) now work via the standard `navigator.mediaSession`
+web API — Chromium wires this to SMTC on its own, no native module needed.
+Title/author/cover show as the metadata; the subtitle updates live to the
+current chapter as playback moves through the book. `setPositionState` keeps
+the flyout's own seek bar in sync.
+
+Also added while in this layer, both native Windows Shell features with no
+mediaSession involvement of their own: **taskbar thumbnail-toolbar buttons**
+(prev/play-pause/next chapter, shown on the taskbar button's hover preview —
+flat glyph icons generated procedurally in `scripts/make-media-icons.cjs`,
+same draw-big-downsize-for-anti-aliasing trick as the app icon), and a
+**jump list** of recently-played books (right-click / Start tile), which
+required adding a proper single-instance lock so clicking a jump-list item
+focuses the running window instead of opening a second one.
+
+*Tested:* the mediaSession wiring end-to-end via CDP (metadata incl. real
+cover artwork decoding, `playbackState` sync, live chapter-subtitle updates,
+the actual code paths every action handler calls), confirmed identical
+behavior in a real installed build, and confirmed the thumbbar registers
+successfully with the OS (`setThumbarButtons` accepted, no rejection). The
+jump list's `setJumpList` call was confirmed to *fail* with exactly the
+expected `customCategoryAccessDeniedError` on this dev machine (Windows'
+"show recently opened items" privacy setting is off here) and then, with that
+setting temporarily flipped on and immediately reverted back, confirmed to
+*succeed* — proving the code path itself is correct independent of the local
+privacy setting. Also verified end-to-end: launching a second process with
+`--open-book=<id>` (what a jump-list click does) is blocked by the new
+single-instance lock and correctly focuses the running window on that exact
+book instead of opening a duplicate one.
 
 ### 3. Listening statistics & streaks — **M**
 Total time listened, books finished, current streak, top authors/narrators, pace

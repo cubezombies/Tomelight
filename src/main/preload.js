@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('api', {
   clearMetadata: (bookId) => ipcRenderer.invoke('metadata:clear', bookId),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
   installUpdate: () => ipcRenderer.invoke('updates:install'),
+  getInitialOpenBook: () => ipcRenderer.invoke('app:getInitialOpenBook'),
+  setPlayingState: (isPlaying) => ipcRenderer.invoke('player:setPlayingState', isPlaying),
 
   onLibraryChanged: (cb) => {
     const listener = (_event, state) => cb(state);
@@ -47,5 +49,15 @@ contextBridge.exposeInMainWorld('api', {
     const listener = () => cb();
     ipcRenderer.on('updates:open', listener);
     return () => ipcRenderer.off('updates:open', listener);
+  },
+  onMediaControl: (cb) => {
+    const listener = (_event, action) => cb(action);
+    ipcRenderer.on('media:control', listener);
+    return () => ipcRenderer.off('media:control', listener);
+  },
+  onOpenBook: (cb) => {
+    const listener = (_event, bookId) => cb(bookId);
+    ipcRenderer.on('player:openBook', listener);
+    return () => ipcRenderer.off('player:openBook', listener);
   },
 });

@@ -8,6 +8,17 @@ what the in-app "Check for Updates" screen shows) — see
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-22
+### Added
+- Windows media flyout, lock screen, and hardware/keyboard media key support
+  (play/pause, previous/next chapter), with the book's cover, title, and
+  author — and a live-updating chapter subtitle — via the standard
+  `navigator.mediaSession` API.
+- Taskbar thumbnail-toolbar buttons (previous chapter / play-pause / next
+  chapter) on hover.
+- A "Continue Listening" jump list of recently-played books on the taskbar
+  icon / Start tile, which opens straight to that book.
+
 ## [0.2.3] - 2026-07-22
 ### Fixed
 - The default data location was hardcoded to this developer's own `D:` drive

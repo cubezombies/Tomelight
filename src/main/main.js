@@ -11,6 +11,18 @@ const {
 } = require('./paths');
 
 app.setName('Tomelight');
+// Matches build.appId in package.json — keeps the taskbar jump list, thumbbar
+// grouping, and shortcut identity consistent with what the installer registers.
+app.setAppUserModelId('com.cubezombies.tomelight');
+
+// A jump-list click launches a *second* process with --open-book=<id>; without
+// this, that would open a confusing second window instead of focusing the
+// running one. The doomed second instance exits immediately, before any of
+// the setup below (store creation, window creation) runs.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+  process.exit(0);
+}
 
 // Chromium doesn't create this directory itself — it just writes into
 // whatever setPath points at, and fails silently-ish (DevToolsActivePort
@@ -29,6 +41,7 @@ const { scanLibrary } = require('./library');
 const { registerScheme, registerMediaProtocol, mediaUrl } = require('./media-protocol');
 const { searchOpenLibrary, fetchWorkDescription, downloadCover } = require('./metadata-lookup');
 const updater = require('./updater');
+const taskbar = require('./taskbar');
 
 registerScheme();
 
@@ -46,6 +59,18 @@ const metadataStore = new JsonStore(METADATA_FILE, {});
 
 let mainWindow = null;
 let scanning = false;
+
+// Set when the app is launched (or re-launched, via second-instance) from a
+// jump-list "Continue Listening" click; consumed once via app:getInitialOpenBook.
+let initialOpenBookId = taskbar.bookIdFromArgv(process.argv);
+
+function sendMediaControl(action) {
+  mainWindow?.webContents.send('media:control', action);
+}
+
+function refreshJumpList() {
+  taskbar.updateJumpList(currentState().books, progressStore.get());
+}
 
 function getAllowedRoots() {
   return libraryStore.get().folders ?? [];
@@ -405,6 +430,7 @@ async function runScan() {
     scanning = false;
     mainWindow?.webContents.send('library:scan-progress', { done: 0, total: 0, scanning: false });
     mainWindow?.webContents.send('library:changed', currentState());
+    refreshJumpList(); // a removed/renamed book could be sitting in the list
   }
 }
 
@@ -483,12 +509,14 @@ function registerIpc() {
       updatedAt: Date.now(),
     };
     progressStore.set(progress);
+    refreshJumpList();
   });
 
   ipcMain.handle('progress:clear', (_event, bookId) => {
     const progress = { ...progressStore.get() };
     delete progress[bookId];
     progressStore.set(progress);
+    refreshJumpList();
     return progress;
   });
 
@@ -514,6 +542,7 @@ function registerIpc() {
       updatedAt: Date.now(),
     };
     progressStore.set(progress);
+    refreshJumpList();
     return progress;
   });
 
@@ -635,6 +664,7 @@ function registerIpc() {
       fetchedAt: Date.now(),
     };
     metadataStore.set(map);
+    refreshJumpList(); // title/author may have just changed
     return currentState();
   });
 
@@ -651,8 +681,24 @@ function registerIpc() {
       } catch {
         // Best effort — a leftover cached cover file isn't worth surfacing an error for.
       }
+      refreshJumpList();
     }
     return currentState();
+  });
+
+  // One-shot: consumed by the renderer on bootstrap so a jump-list launch
+  // (--open-book=<id>) opens straight to that book. Cleared after reading so
+  // a later in-app rescan/reload doesn't keep reopening the same book.
+  ipcMain.handle('app:getInitialOpenBook', () => {
+    const id = initialOpenBookId;
+    initialOpenBookId = null;
+    return id;
+  });
+
+  // Renderer pushes play/pause changes here so the thumbbar icon (play vs.
+  // pause) stays in sync — Windows has no way to ask the window for this.
+  ipcMain.handle('player:setPlayingState', (_event, isPlaying) => {
+    taskbar.setThumbar(mainWindow, Boolean(isPlaying), sendMediaControl);
   });
 }
 
@@ -687,6 +733,8 @@ app.whenReady().then(async () => {
   buildMenu();
   createWindow();
   updater.setStatusSink((status) => mainWindow?.webContents.send('update:status', status));
+  taskbar.setThumbar(mainWindow, false, sendMediaControl);
+  refreshJumpList();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -694,6 +742,17 @@ app.whenReady().then(async () => {
 
   // Pick up files added outside the app since last launch.
   if (libraryStore.get().folders.length) runScan();
+});
+
+// A jump-list click while the app is already running lands here instead of
+// spawning a second window, since requestSingleInstanceLock() is held above.
+app.on('second-instance', (_event, argv) => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+  const bookId = taskbar.bookIdFromArgv(argv);
+  if (bookId) mainWindow?.webContents.send('player:openBook', bookId);
 });
 
 app.on('window-all-closed', () => {
