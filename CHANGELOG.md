@@ -8,6 +8,19 @@ what the in-app "Check for Updates" screen shows) — see
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-07-22
+### Fixed
+- The default data location was hardcoded to this developer's own `D:` drive
+  convention (`D:\Claude\Tomelight`) rather than a real per-user default — on
+  a machine with no `D:` drive the app would fail to start, and on any other
+  machine it would create a nonsensical `D:\Claude\...` folder. Now defaults
+  to the standard `%APPDATA%\Tomelight`, empty until you add your own library
+  folder. `TOMELIGHT_DATA_ROOT` still overrides it for local dev.
+- Related: Chromium's own profile folder (`userData`) wasn't created before
+  Electron pointed it there, which silently failed on a genuinely fresh
+  machine (masked for months by the old path already existing on disk from
+  years of local use).
+
 ## [0.2.2] - 2026-07-22
 ### Added
 - A Ko-fi donation link in **About Tomelight**.

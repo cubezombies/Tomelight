@@ -158,11 +158,16 @@ un-focuses the box on a second press, rather than leaving the book view.
 
 ## Where data lives
 
-Everything is kept off `C:`. Paths are set in `src/main/paths.js` and can be
-redirected with the `TOMELIGHT_DATA_ROOT` environment variable.
+A fresh install starts completely empty — no bundled or sample library data
+— and everything you add lives under the standard per-user app-data folder,
+`%APPDATA%\Tomelight\` (`C:\Users\<you>\AppData\Roaming\Tomelight\`).
+Paths are set in `src/main/paths.js` and can be redirected with the
+`TOMELIGHT_DATA_ROOT` environment variable (this developer's own machine
+points it at a `D:` drive; that's a personal preference, not something the
+installer assumes for anyone else).
 
 ```
-D:\Claude\Tomelight\
+%APPDATA%\Tomelight\
   userData\               Electron/Chromium profile and caches
   covers\                 extracted cover art
   covers-online\          covers fetched via the online metadata lookup
@@ -181,7 +186,7 @@ against each file's size and mtime, so rescans only reparse what changed.
 **File → Backup data…** bundles `progress.json`, `bookmarks.json`,
 `normalization.json`, and `metadata-overrides.json` into one timestamped JSON
 file and lets you choose where to save it — deliberately defaulting to
-`D:\Claude\Tomelight-Backups`, a sibling of the data folder rather than
+`%APPDATA%\Tomelight-Backups`, a sibling of the data folder rather than
 something inside it, so deleting or corrupting the live data folder can't take
 the backup down with it too. Cached cover images from the online lookup aren't
 included (they're just re-fetchable), so a restored override may briefly show

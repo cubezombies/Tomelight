@@ -12,8 +12,15 @@ const {
 
 app.setName('Tomelight');
 
-// Must happen before anything touches app paths, otherwise Chromium creates
-// its caches under %APPDATA% on C:.
+// Chromium doesn't create this directory itself — it just writes into
+// whatever setPath points at, and fails silently-ish (DevToolsActivePort
+// write errors, likely worse elsewhere) if it doesn't exist yet. Only shows
+// up on a genuinely fresh machine; the previous hardcoded dev path had
+// existed on disk for years, masking this. Must happen before setPath below.
+fs.mkdirSync(USER_DATA, { recursive: true });
+
+// Redirect userData off the OS default so a rescan or config change isn't
+// tied to wherever Electron would otherwise put it.
 app.setPath('userData', USER_DATA);
 app.setPath('sessionData', USER_DATA);
 

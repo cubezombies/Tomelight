@@ -173,7 +173,7 @@ re-adding as a fresh bookmark. A second toast silently replaces a pending one
 **File → Backup data…** / **Restore from backup…**, next to the existing "Open
 data folder". Bundles the three stores into one timestamped JSON envelope rather
 than a real zip — no archive library needed, and it stays human-inspectable —
-defaulting to `D:\Claude\Tomelight-Backups`, a **sibling** of the data folder so
+defaulting to `%APPDATA%\Tomelight-Backups`, a **sibling** of the data folder so
 deleting/corrupting the live folder can't take the backup with it. Restore reads
 and validates the file, shows what it contains (counts, backup date) in a native
 confirm dialog, and only applies on confirmation — this replaces current data and
