@@ -9,8 +9,6 @@ shelf, library filters, and **series grouping** keep the book you're on one clic
 away, even in a library of thousands. Light and dark themes, following the system
 by default.
 
-The name is *tome* + *light* — reading old tomes by candlelight.
-
 ## Icons
 
 The app icon is generated from `assets/logo.png` — the emblem is cropped out
