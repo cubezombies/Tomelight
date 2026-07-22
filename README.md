@@ -95,12 +95,14 @@ redirected with the `TOMELIGHT_DATA_ROOT` environment variable.
 
 ```
 D:\Claude\Tomelight\
-  userData\             Electron/Chromium profile and caches
-  covers\               extracted cover art
-  library.json          scanned library
-  progress.json         per-book listening position, speed
-  bookmarks.json        per-book bookmarks
-  normalization.json    per-book measured loudness gain
+  userData\               Electron/Chromium profile and caches
+  covers\                 extracted cover art
+  covers-online\          covers fetched via the online metadata lookup
+  library.json            scanned library
+  progress.json           per-book listening position, speed
+  bookmarks.json          per-book bookmarks
+  normalization.json      per-book measured loudness gain
+  metadata-overrides.json per-book online metadata corrections
 ```
 
 Scanning a large library takes a few minutes the first time. Results are cached
@@ -108,16 +110,20 @@ against each file's size and mtime, so rescans only reparse what changed.
 
 ### Backup and restore
 
-**File → Backup data…** bundles `progress.json`, `bookmarks.json`, and
-`normalization.json` into one timestamped JSON file and lets you choose where to
-save it — deliberately defaulting to `D:\Claude\Tomelight-Backups`, a sibling of
-the data folder rather than something inside it, so deleting or corrupting the
-live data folder can't take the backup down with it too.
+**File → Backup data…** bundles `progress.json`, `bookmarks.json`,
+`normalization.json`, and `metadata-overrides.json` into one timestamped JSON
+file and lets you choose where to save it — deliberately defaulting to
+`D:\Claude\Tomelight-Backups`, a sibling of the data folder rather than
+something inside it, so deleting or corrupting the live data folder can't take
+the backup down with it too. Cached cover images from the online lookup aren't
+included (they're just re-fetchable), so a restored override may briefly show
+no cover until you look it up again.
 
 **File → Restore from backup…** reads a backup file, shows what it contains
 (book counts, when it was made) in a confirmation dialog, and — only if you
-confirm — replaces your current progress, bookmarks, and normalization data with
-it. This can't be undone, so it's worth being sure before confirming.
+confirm — replaces your current progress, bookmarks, normalization, and
+online-metadata data with it. This can't be undone, so it's worth being sure
+before confirming.
 
 To scan without launching the app (useful for a first run):
 
@@ -142,6 +148,7 @@ src/main/
   group.js           files -> books (disc merging, m4b vs mp3-folder)
   mp4-chapters.js    MP4/M4B chapter + duration parser
   media-protocol.js  ab-media:// with byte-range support
+  metadata-lookup.js Open Library search/description/cover fetch
   store.js           atomic JSON persistence
   preload.js         contextBridge API
 src/renderer/        UI (no framework)
@@ -166,6 +173,38 @@ actually in your library, so it can't be used to read arbitrary files.
 - **Merged m4b parts use one chapter per file.** When a book shipped as numbered
   `.m4b` segments is merged, each segment becomes one chapter; any chapters
   embedded inside a segment are not surfaced.
+
+## Online metadata lookup
+
+Scanned tags are sometimes wrong or incomplete — a garbage ripper tag as the
+author, a missing description, no embedded cover. The book view's **Look up
+online** button searches [Open Library](https://openlibrary.org) for the real
+title, author, description, and a higher-resolution cover, and lets you apply
+one as a correction on top of the scanned data.
+
+It's opt-in and off by default — the first click shows what it does and what it
+sends before turning it on, and nothing is looked up automatically at any other
+time (no lookups on scan, on library load, or in the background). Everything
+fetched is cached locally in `metadata-overrides.json` and `covers-online\`, so
+once applied a book displays correctly offline. **Revert to file tags** on a
+corrected book removes the override (and its cached cover) and goes back to
+what was scanned from the file.
+
+Source is Open Library only. Google Books' keyless tier returned a quota error
+on the very first request in testing, before shipping a single real query,
+which would have meant asking every user to obtain their own API key just to
+use the feature — rejected as too much friction for an opt-in convenience.
+Audible has no public API, and scraping it would be a ToS risk this app isn't
+taking on.
+
+**Series-splitting is out of scope.** The original ask included using this
+lookup to split box sets / series-tagged titles apart. Open Library's series
+data turned out to be too sparse and inconsistent across this library's real
+books to build a reliable feature on — it's a metadata-correction tool
+(title/author/description/cover), not a re-grouping one. The existing
+[series detection](#series-grouping) (parsed from the title/author already in
+Tomelight) and the [known series-tagged-title limitation](#known-limitations)
+above are unaffected by this feature.
 
 ## Keyboard
 

@@ -5,7 +5,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
 
-const { USER_DATA, LIBRARY_FILE, PROGRESS_FILE, BOOKMARKS_FILE, NORMALIZATION_FILE, DATA_ROOT, COVER_CACHE, BACKUP_DIR } = require('./paths');
+const {
+  USER_DATA, LIBRARY_FILE, PROGRESS_FILE, BOOKMARKS_FILE, NORMALIZATION_FILE,
+  METADATA_FILE, DATA_ROOT, COVER_CACHE, ONLINE_COVER_CACHE, BACKUP_DIR,
+} = require('./paths');
 
 app.setName('Tomelight');
 
@@ -17,6 +20,7 @@ app.setPath('sessionData', USER_DATA);
 const { JsonStore } = require('./store');
 const { scanLibrary } = require('./library');
 const { registerScheme, registerMediaProtocol, mediaUrl } = require('./media-protocol');
+const { searchOpenLibrary, fetchWorkDescription, downloadCover } = require('./metadata-lookup');
 
 registerScheme();
 
@@ -26,6 +30,11 @@ const progressStore = new JsonStore(PROGRESS_FILE, {});
 const bookmarksStore = new JsonStore(BOOKMARKS_FILE, {});
 // { [bookId]: gain } — measured per-book loudness gain (linear multiplier)
 const normalizationStore = new JsonStore(NORMALIZATION_FILE, {});
+// { [bookId]: { title, author, description, hasCover, source, sourceKey, fetchedAt } }
+// User-applied corrections from the online metadata lookup; merged on top of
+// the scanned tags in toClientBook(). Never written by anything but the
+// metadata:apply / metadata:clear handlers below — no automatic lookups.
+const metadataStore = new JsonStore(METADATA_FILE, {});
 
 let mainWindow = null;
 let scanning = false;
@@ -59,6 +68,10 @@ function bookMtime(book) {
 }
 
 /** Books carry absolute paths; the renderer only ever sees ab-media:// URLs. */
+function onlineCoverPath(bookId) {
+  return path.join(ONLINE_COVER_CACHE, `${bookId}.jpg`);
+}
+
 function toClientBook(book) {
   let elapsed = 0;
   const tracks = book.tracks.map((track) => {
@@ -72,21 +85,29 @@ function toClientBook(book) {
     return entry;
   });
 
+  // A user-applied online correction wins over the scanned tags for these
+  // fields. chapters/duration/tracks always come from the real audio file —
+  // an online source has no idea where this specific rip's chapters fall.
+  const override = metadataStore.get()[book.id];
+  const cover = override?.hasCover ? onlineCoverPath(book.id) : book.cover;
+
   return {
     id: book.id,
     kind: book.kind,
-    title: book.title,
-    author: book.author,
+    title: override?.title || book.title,
+    author: override?.author || book.author,
     narrator: book.narrator,
     year: book.year,
-    description: book.description,
+    description: override?.description || book.description,
     duration: book.duration,
     chapters: book.chapters,
     tracks,
-    coverUrl: book.cover ? mediaUrl(book.cover) : null,
+    coverUrl: cover ? mediaUrl(cover) : null,
     mtimeMs: bookMtime(book),
     fileName: path.basename(book.tracks[0]?.filePath ?? ''),
     trackCount: book.tracks.length,
+    metadataSource: override?.source ?? null,
+    metadataFetchedAt: override?.fetchedAt ?? null,
   };
 }
 
@@ -175,11 +196,14 @@ function openAbout() {
 }
 
 /**
- * Bundle progress, bookmarks, and normalization gains into one JSON file and
- * let the user choose where to save it — insurance against the data folder
- * being deleted or corrupted. A single JSON envelope rather than a zip: these
- * are three small plain-object stores already held in memory, so wrapping them
- * in one object needs no archive library and stays human-inspectable.
+ * Bundle progress, bookmarks, normalization gains, and online-metadata
+ * overrides into one JSON file and let the user choose where to save it —
+ * insurance against the data folder being deleted or corrupted. A single JSON
+ * envelope rather than a zip: these are small plain-object stores already
+ * held in memory, so wrapping them in one object needs no archive library and
+ * stays human-inspectable. Cached cover images themselves aren't included —
+ * they're re-fetchable, and embedding binary data would turn this from a
+ * readable JSON file into an opaque blob.
  */
 async function createBackup() {
   if (!mainWindow) return;
@@ -205,6 +229,7 @@ async function createBackup() {
     progress: progressStore.get(),
     bookmarks: bookmarksStore.get(),
     normalization: normalizationStore.get(),
+    metadata: metadataStore.get(),
   };
 
   try {
@@ -212,7 +237,7 @@ async function createBackup() {
     dialog.showMessageBox(mainWindow, {
       type: 'info',
       message: 'Backup saved',
-      detail: `Progress, bookmarks, and normalization data were saved to:\n${filePath}`,
+      detail: `Progress, bookmarks, normalization, and online-metadata data were saved to:\n${filePath}`,
     });
   } catch (err) {
     dialog.showErrorBox('Backup failed', err.message);
@@ -252,11 +277,15 @@ async function restoreBackup() {
     dialog.showErrorBox('Restore failed', 'That file does not look like a Tomelight backup.');
     return;
   }
+  // Backups made before the online-metadata feature shipped won't have this
+  // field — treat it as "no overrides" rather than rejecting the whole backup.
+  const metadata = bundle.metadata && typeof bundle.metadata === 'object' ? bundle.metadata : {};
 
   const bookCount = Object.keys(bundle.progress).length;
   const bookmarkCount = Object.values(bundle.bookmarks)
     .reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
   const normCount = Object.keys(bundle.normalization).length;
+  const metadataCount = Object.keys(metadata).length;
   const when = bundle.exportedAt ? new Date(bundle.exportedAt).toLocaleString() : 'an unknown time';
 
   const { response } = await dialog.showMessageBox(mainWindow, {
@@ -267,25 +296,31 @@ async function restoreBackup() {
     message: 'Restore from this backup?',
     detail:
       `This backup was made ${when} and contains progress for ${bookCount} book(s), `
-      + `${bookmarkCount} bookmark(s), and normalization data for ${normCount} book(s).\n\n`
-      + 'Restoring will REPLACE your current progress, bookmarks, and normalization '
-      + 'data. This cannot be undone.',
+      + `${bookmarkCount} bookmark(s), normalization data for ${normCount} book(s), and `
+      + `${metadataCount} online-metadata override(s).\n\n`
+      + 'Restoring will REPLACE your current progress, bookmarks, normalization, and '
+      + 'online-metadata data. This cannot be undone. Cached cover images from online '
+      + 'overrides are not part of the backup and will be re-downloaded on next lookup '
+      + 'if missing.',
   });
   if (response !== 1) return;
 
   progressStore.set(bundle.progress);
   bookmarksStore.set(bundle.bookmarks);
   normalizationStore.set(bundle.normalization);
+  metadataStore.set(metadata);
   progressStore.flushSync();
   bookmarksStore.flushSync();
   normalizationStore.flushSync();
+  metadataStore.flushSync();
 
   mainWindow.webContents.send('library:changed', currentState());
   dialog.showMessageBox(mainWindow, {
     type: 'info',
     message: 'Backup restored',
     detail: `Restored progress for ${bookCount} book(s), ${bookmarkCount} bookmark(s), `
-      + `and normalization data for ${normCount} book(s).`,
+      + `normalization data for ${normCount} book(s), and ${metadataCount} online-metadata `
+      + 'override(s).',
   });
 }
 
@@ -548,6 +583,58 @@ function registerIpc() {
   });
 
   ipcMain.handle('app:revealDataFolder', () => shell.openPath(DATA_ROOT));
+
+  ipcMain.handle('metadata:search', async (_event, query) => searchOpenLibrary(query));
+
+  // Full description for one picked candidate — fetched only when the user
+  // selects a search result, not for every row in the results list.
+  ipcMain.handle('metadata:preview', async (_event, key) => fetchWorkDescription(key));
+
+  /**
+   * Apply a picked candidate as this book's override. The cover is downloaded
+   * before the override record is written, so a book is never left pointing at
+   * a cover file that doesn't exist yet.
+   */
+  ipcMain.handle('metadata:apply', async (_event, payload) => {
+    const { bookId, title, author, description, coverId, source, sourceKey } = payload ?? {};
+    if (typeof bookId !== 'string' || !bookId) return currentState();
+
+    let hasCover = false;
+    if (coverId) {
+      const dl = await downloadCover(coverId, onlineCoverPath(bookId));
+      hasCover = dl.ok && dl.downloaded;
+    }
+
+    const map = { ...metadataStore.get() };
+    map[bookId] = {
+      title: (title ?? '').toString().slice(0, 500),
+      author: (author ?? '').toString().slice(0, 500),
+      description: (description ?? '').toString().slice(0, 10_000),
+      hasCover,
+      source: source ?? 'openlibrary',
+      sourceKey: sourceKey ?? null,
+      fetchedAt: Date.now(),
+    };
+    metadataStore.set(map);
+    return currentState();
+  });
+
+  /** Revert a book to its scanned file tags, dropping the online override. */
+  ipcMain.handle('metadata:clear', (_event, bookId) => {
+    if (typeof bookId !== 'string') return currentState();
+    const map = { ...metadataStore.get() };
+    if (map[bookId]) {
+      delete map[bookId];
+      metadataStore.set(map);
+      try {
+        const cached = onlineCoverPath(bookId);
+        if (fs.existsSync(cached)) fs.unlinkSync(cached);
+      } catch {
+        // Best effort — a leftover cached cover file isn't worth surfacing an error for.
+      }
+    }
+    return currentState();
+  });
 }
 
 /**
@@ -571,7 +658,10 @@ function normalizeCoverPaths(libraryState) {
 }
 
 app.whenReady().then(async () => {
-  await Promise.all([libraryStore.load(), progressStore.load(), bookmarksStore.load(), normalizationStore.load()]);
+  await Promise.all([
+    libraryStore.load(), progressStore.load(), bookmarksStore.load(),
+    normalizationStore.load(), metadataStore.load(),
+  ]);
   if (normalizeCoverPaths(libraryStore.get())) libraryStore.flush();
   registerMediaProtocol(getAllowedRoots);
   registerIpc();
@@ -595,4 +685,5 @@ app.on('before-quit', () => {
   progressStore.flushSync();
   bookmarksStore.flushSync();
   normalizationStore.flushSync();
+  metadataStore.flushSync();
 });

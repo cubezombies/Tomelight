@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld('api', {
   restoreBookmark: (payload) => ipcRenderer.invoke('bookmarks:restore', payload),
   saveNormalization: (payload) => ipcRenderer.invoke('normalization:save', payload),
   revealDataFolder: () => ipcRenderer.invoke('app:revealDataFolder'),
+  searchMetadata: (query) => ipcRenderer.invoke('metadata:search', query),
+  previewMetadata: (key) => ipcRenderer.invoke('metadata:preview', key),
+  applyMetadata: (payload) => ipcRenderer.invoke('metadata:apply', payload),
+  clearMetadata: (bookId) => ipcRenderer.invoke('metadata:clear', bookId),
 
   onLibraryChanged: (cb) => {
     const listener = (_event, state) => cb(state);

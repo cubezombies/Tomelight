@@ -6,7 +6,7 @@ const path = require('node:path');
 const { Readable } = require('node:stream');
 const { protocol } = require('electron');
 
-const { COVER_CACHE } = require('./paths');
+const { COVER_CACHE, ONLINE_COVER_CACHE } = require('./paths');
 
 const SCHEME = 'ab-media';
 
@@ -63,7 +63,7 @@ function registerMediaProtocol(getAllowedRoots) {
       return new Response('Bad request', { status: 400 });
     }
 
-    const roots = [...getAllowedRoots(), COVER_CACHE];
+    const roots = [...getAllowedRoots(), COVER_CACHE, ONLINE_COVER_CACHE];
     if (!roots.some((root) => isInside(root, filePath))) {
       console.warn(`[media] blocked out-of-library request: ${filePath}`);
       return new Response('Forbidden', { status: 403 });

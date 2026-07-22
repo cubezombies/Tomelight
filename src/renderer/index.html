@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; img-src 'self' ab-media:; media-src 'self' ab-media:; style-src 'self'; script-src 'self';" />
+        content="default-src 'self'; img-src 'self' ab-media: https://covers.openlibrary.org; media-src 'self' ab-media:; style-src 'self'; script-src 'self';" />
   <title>Tomelight</title>
   <script src="theme-init.js"></script>
   <link rel="stylesheet" href="styles.css" />
@@ -78,11 +78,14 @@
           <h2 id="bookTitle"></h2>
           <p id="bookAuthor" class="muted"></p>
           <p id="bookSub" class="muted small"></p>
+          <p id="metadataBadge" class="muted small metadata-badge hidden">via Open Library</p>
           <p id="bookDesc" class="desc"></p>
           <div class="book-actions">
             <button id="bookmarkHereBtn" class="btn">Bookmark current spot</button>
             <button id="finishedToggleBtn" class="btn finished-toggle" aria-pressed="false">Mark as finished</button>
             <button id="resetProgressBtn" class="btn btn-quiet">Reset progress</button>
+            <button id="metadataLookupBtn" class="btn btn-quiet">Look up online</button>
+            <button id="metadataRevertBtn" class="btn btn-quiet hidden">Revert to file tags</button>
           </div>
         </div>
       </div>
@@ -191,6 +194,49 @@
 
   <div id="dropOverlay" class="drop-overlay hidden" aria-hidden="true">
     <div class="drop-overlay-box">📁 Drop a folder to add it to your library</div>
+  </div>
+
+  <div id="metadataModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="metadataModalTitle">
+    <div class="modal-box metadata-modal">
+      <div class="modal-header">
+        <h3 id="metadataModalTitle">Look up online</h3>
+        <button id="metadataModalClose" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+
+      <div id="metadataOptIn" class="metadata-optin hidden">
+        <p>Tomelight can look up this book on <strong>Open Library</strong> to fetch a corrected
+          title/author, a real description, and a higher-resolution cover.</p>
+        <p class="muted small">This sends the text you search for to openlibrary.org over the
+          internet. Nothing is looked up automatically — only when you search here, for a book you
+          pick. Results are cached locally, and you can revert to the file's own tags at any time.</p>
+        <div class="modal-actions">
+          <button id="metadataOptInEnable" class="btn btn-primary">Enable online lookup</button>
+          <button id="metadataOptInCancel" class="btn btn-quiet">Not now</button>
+        </div>
+      </div>
+
+      <div id="metadataSearchUI" class="metadata-search-ui hidden">
+        <form id="metadataSearchForm" class="metadata-search-form">
+          <input id="metadataQuery" type="search" placeholder="Title, author…" aria-label="Search Open Library" />
+          <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+        <div id="metadataStatus" class="metadata-status muted small" role="status" aria-live="polite"></div>
+        <ul id="metadataResults" class="metadata-results"></ul>
+
+        <div id="metadataPreview" class="metadata-preview hidden">
+          <img id="metadataPreviewCover" class="metadata-preview-cover" alt="" />
+          <div class="metadata-preview-body">
+            <h4 id="metadataPreviewTitle"></h4>
+            <p id="metadataPreviewAuthor" class="muted small"></p>
+            <p id="metadataPreviewDesc" class="desc small"></p>
+            <div class="modal-actions">
+              <button id="metadataApplyBtn" class="btn btn-primary">Apply to this book</button>
+              <button id="metadataBackBtn" class="btn btn-quiet">Back to results</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>

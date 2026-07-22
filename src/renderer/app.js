@@ -19,6 +19,17 @@ const el = {
   chapterCount: $('chapterCount'), chapterSearch: $('chapterSearch'),
   resetProgressBtn: $('resetProgressBtn'),
   finishedToggleBtn: $('finishedToggleBtn'),
+  metadataBadge: $('metadataBadge'), metadataLookupBtn: $('metadataLookupBtn'),
+  metadataRevertBtn: $('metadataRevertBtn'),
+  metadataModal: $('metadataModal'), metadataModalClose: $('metadataModalClose'),
+  metadataOptIn: $('metadataOptIn'), metadataOptInEnable: $('metadataOptInEnable'),
+  metadataOptInCancel: $('metadataOptInCancel'),
+  metadataSearchUI: $('metadataSearchUI'), metadataSearchForm: $('metadataSearchForm'),
+  metadataQuery: $('metadataQuery'), metadataStatus: $('metadataStatus'),
+  metadataResults: $('metadataResults'), metadataPreview: $('metadataPreview'),
+  metadataPreviewCover: $('metadataPreviewCover'), metadataPreviewTitle: $('metadataPreviewTitle'),
+  metadataPreviewAuthor: $('metadataPreviewAuthor'), metadataPreviewDesc: $('metadataPreviewDesc'),
+  metadataApplyBtn: $('metadataApplyBtn'), metadataBackBtn: $('metadataBackBtn'),
   toast: $('toast'), toastMsg: $('toastMsg'), toastUndo: $('toastUndo'),
   dropOverlay: $('dropOverlay'),
   bookmarkBtn: $('bookmarkBtn'), bookmarkHereBtn: $('bookmarkHereBtn'),
@@ -80,6 +91,9 @@ const state = {
   normalization: {},   // { [bookId]: measured gain }
   norm: null,          // in-progress loudness measurement for the current book
   groupSeries: localStorage.getItem('groupSeries') === '1',
+  onlineMetadataEnabled: localStorage.getItem('onlineMetadataEnabled') === '1',
+  metadataResults: [],   // last Open Library search results for the modal
+  metadataPicked: null,  // the candidate currently shown in the preview pane
   viewingSeries: null, // the series group currently shown in the series view
   bookReturnsToSeries: null, // where the book view's back button should return
   pausedAt: 0,         // timestamp of the last pause, for resume auto-rewind
@@ -622,19 +636,9 @@ function goBack() {
   }
 }
 
-function openBook(bookId) {
-  const book = state.books.find((b) => b.id === bookId);
-  if (!book) return;
-
-  state.current = book;
-  state.bookReturnsToSeries = null; // series volumes re-set this after this runs
-  el.chapterSearch.value = ''; // start each book's chapter list unfiltered
-  el.libraryView.classList.add('hidden');
-  el.seriesView.classList.add('hidden');
-  el.bookView.classList.remove('hidden');
-  el.backBtn.classList.remove('hidden');
+/** The header block (cover/title/author/sub/description) — split out of openBook() so applyState() can refresh it in place after a metadata edit, without touching playback or the chapter search. */
+function renderBookHeader(book) {
   el.viewTitle.textContent = book.title;
-
   el.bookCover.src = book.coverUrl || '';
   el.bookCover.alt = book.coverUrl ? `${book.title} cover` : '';
   el.bookTitle.textContent = book.title;
@@ -648,10 +652,25 @@ function openBook(bookId) {
 
   el.bookDesc.textContent = book.description || '';
   el.bookDesc.classList.toggle('hidden', !book.description);
+}
 
+function openBook(bookId) {
+  const book = state.books.find((b) => b.id === bookId);
+  if (!book) return;
+
+  state.current = book;
+  state.bookReturnsToSeries = null; // series volumes re-set this after this runs
+  el.chapterSearch.value = ''; // start each book's chapter list unfiltered
+  el.libraryView.classList.add('hidden');
+  el.seriesView.classList.add('hidden');
+  el.bookView.classList.remove('hidden');
+  el.backBtn.classList.remove('hidden');
+
+  renderBookHeader(book);
   renderChapters(book);
   renderBookmarks(book);
   updateFinishedButton(book);
+  updateMetadataUI(book);
   loadIntoPlayer(book);
 }
 
@@ -660,6 +679,18 @@ function updateFinishedButton(book) {
   const finished = isFinished(state.progress[book.id]);
   el.finishedToggleBtn.textContent = finished ? 'Mark as not finished' : 'Mark as finished';
   el.finishedToggleBtn.setAttribute('aria-pressed', String(finished));
+}
+
+/** Show/hide the "via Open Library" provenance badge and the revert action. */
+function updateMetadataUI(book) {
+  const hasOverride = Boolean(book.metadataSource);
+  el.metadataBadge.classList.toggle('hidden', !hasOverride);
+  el.metadataBadge.textContent = hasOverride ? `via ${sourceLabel(book.metadataSource)}` : '';
+  el.metadataRevertBtn.classList.toggle('hidden', !hasOverride);
+}
+
+function sourceLabel(source) {
+  return source === 'openlibrary' ? 'Open Library' : source;
 }
 
 /** Manually force (or clear) a book's finished status; wins over the auto-computed one. */
@@ -1618,6 +1649,189 @@ el.finishedToggleBtn.addEventListener('click', () => {
 el.bookmarkBtn.addEventListener('click', () => addBookmark());
 el.bookmarkHereBtn.addEventListener('click', () => addBookmark());
 
+/* ----------------
+ * Online metadata lookup (Open Library) — opt-in, user-initiated only.
+ * Nothing here runs automatically; every network call traces back to a click
+ * in this modal. Series-splitting (part of the original roadmap ask) isn't
+ * attempted: Open Library's series data is too sparse/inconsistent across
+ * this library's real books to build a reliable feature on, so this stays
+ * scoped to title/author/description/cover correction.
+ * ---------------- */
+
+function closeMetadataModal() {
+  el.metadataModal.classList.add('hidden');
+  state.metadataResults = [];
+  state.metadataPicked = null;
+}
+
+function showMetadataResultsPane() {
+  el.metadataOptIn.classList.add('hidden');
+  el.metadataSearchUI.classList.remove('hidden');
+  el.metadataPreview.classList.add('hidden');
+  el.metadataResults.classList.remove('hidden');
+}
+
+function openMetadataModal() {
+  if (!state.current) return;
+  el.metadataModal.classList.remove('hidden');
+  el.metadataStatus.textContent = '';
+  el.metadataResults.replaceChildren();
+  state.metadataResults = [];
+  state.metadataPicked = null;
+  el.metadataPreview.classList.add('hidden');
+
+  if (!state.onlineMetadataEnabled) {
+    el.metadataOptIn.classList.remove('hidden');
+    el.metadataSearchUI.classList.add('hidden');
+    return;
+  }
+
+  showMetadataResultsPane();
+  el.metadataQuery.value = [state.current.title, state.current.author].filter(Boolean).join(' ');
+  el.metadataQuery.focus();
+  el.metadataQuery.select();
+}
+
+el.metadataLookupBtn.addEventListener('click', openMetadataModal);
+el.metadataModalClose.addEventListener('click', closeMetadataModal);
+el.metadataOptInCancel.addEventListener('click', closeMetadataModal);
+el.metadataModal.addEventListener('click', (e) => {
+  if (e.target === el.metadataModal) closeMetadataModal();
+});
+el.metadataModal.addEventListener('keydown', (e) => {
+  // Stop this from also reaching the document-level Escape handler, which
+  // would otherwise interpret it as "close the book view" once this modal
+  // closes (e.g. when focus is on a button rather than the search input).
+  if (e.key === 'Escape') { e.stopPropagation(); closeMetadataModal(); }
+});
+
+el.metadataOptInEnable.addEventListener('click', () => {
+  state.onlineMetadataEnabled = true;
+  localStorage.setItem('onlineMetadataEnabled', '1');
+  showMetadataResultsPane();
+  el.metadataQuery.value = [state.current.title, state.current.author].filter(Boolean).join(' ');
+  el.metadataQuery.focus();
+  el.metadataQuery.select();
+});
+
+function renderMetadataResults(results) {
+  state.metadataResults = results;
+  el.metadataResults.replaceChildren();
+  for (const [index, r] of results.entries()) {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'metadata-result';
+    btn.dataset.index = String(index);
+
+    const img = document.createElement('img');
+    img.className = 'metadata-result-thumb';
+    img.alt = '';
+    if (r.coverThumbUrl) img.src = r.coverThumbUrl;
+
+    const info = document.createElement('div');
+    info.className = 'metadata-result-info';
+    const title = document.createElement('div');
+    title.className = 'metadata-result-title';
+    title.textContent = r.title;
+    const sub = document.createElement('div');
+    sub.className = 'metadata-result-sub';
+    sub.textContent = [r.authors.join(', '), r.year].filter(Boolean).join(' · ') || 'Unknown author';
+    info.append(title, sub);
+
+    btn.append(img, info);
+    li.append(btn);
+    el.metadataResults.append(li);
+  }
+}
+
+el.metadataSearchForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const query = el.metadataQuery.value.trim();
+  el.metadataPreview.classList.add('hidden');
+  if (!query) return;
+
+  el.metadataStatus.textContent = 'Searching…';
+  el.metadataResults.replaceChildren();
+  const result = await window.api.searchMetadata(query);
+
+  if (!result.ok) {
+    el.metadataStatus.textContent = result.error;
+    return;
+  }
+  if (!result.results.length) {
+    el.metadataStatus.textContent = 'No matches found.';
+    renderMetadataResults([]);
+    return;
+  }
+  el.metadataStatus.textContent = `${result.results.length} result${result.results.length === 1 ? '' : 's'}`;
+  renderMetadataResults(result.results);
+});
+
+el.metadataResults.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.metadata-result');
+  if (!btn) return;
+  const candidate = state.metadataResults[Number(btn.dataset.index)];
+  if (!candidate) return;
+
+  state.metadataPicked = candidate;
+  el.metadataResults.classList.add('hidden');
+  el.metadataPreview.classList.remove('hidden');
+  el.metadataPreviewCover.src = candidate.coverThumbUrl || '';
+  el.metadataPreviewTitle.textContent = candidate.title;
+  el.metadataPreviewAuthor.textContent = candidate.authors.join(', ') || 'Unknown author';
+  el.metadataPreviewDesc.textContent = 'Loading description…';
+  el.metadataApplyBtn.disabled = true;
+
+  const desc = await window.api.previewMetadata(candidate.key);
+  // The user may have picked a different candidate (or navigated away) while
+  // this was in flight — only apply the result if it's still the active pick.
+  if (state.metadataPicked !== candidate) return;
+  candidate.description = desc.ok ? desc.description : '';
+  el.metadataPreviewDesc.textContent = candidate.description
+    || 'No description available from Open Library for this edition.';
+  el.metadataApplyBtn.disabled = false;
+});
+
+el.metadataBackBtn.addEventListener('click', () => {
+  el.metadataPreview.classList.add('hidden');
+  el.metadataResults.classList.remove('hidden');
+  state.metadataPicked = null;
+});
+
+el.metadataApplyBtn.addEventListener('click', async () => {
+  const candidate = state.metadataPicked;
+  const book = state.current;
+  if (!candidate || !book) return;
+
+  el.metadataApplyBtn.disabled = true;
+  el.metadataApplyBtn.textContent = 'Applying…';
+  try {
+    const next = await window.api.applyMetadata({
+      bookId: book.id,
+      title: candidate.title,
+      author: candidate.authors.join(', '),
+      description: candidate.description || '',
+      coverId: candidate.coverId,
+      source: 'openlibrary',
+      sourceKey: candidate.key,
+    });
+    applyState(next);
+    closeMetadataModal();
+    showToast(`Applied "${candidate.title}" from Open Library.`);
+  } finally {
+    el.metadataApplyBtn.disabled = false;
+    el.metadataApplyBtn.textContent = 'Apply to this book';
+  }
+});
+
+el.metadataRevertBtn.addEventListener('click', async () => {
+  if (!state.current) return;
+  const next = await window.api.clearMetadata(state.current.id);
+  applyState(next);
+  showToast('Reverted to the file\'s own tags.');
+});
+
 /* ---------------- drag-and-drop a folder onto the window ---------------- */
 
 // dragenter/dragleave fire for every nested element the pointer crosses while
@@ -1713,9 +1927,11 @@ function applyState(next) {
     const refreshed = state.books.find((b) => b.id === state.current.id);
     if (refreshed) {
       state.current = refreshed;
+      renderBookHeader(refreshed);
       renderChapters(refreshed);
       renderBookmarks(refreshed);
       updateFinishedButton(refreshed);
+      updateMetadataUI(refreshed);
     } else {
       showLibrary();
     }

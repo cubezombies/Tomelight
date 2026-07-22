@@ -48,6 +48,11 @@ Already shipped, so it is not repeated in the lists below:
   ↺/↻ buttons; a manual "mark as finished/not finished" override; a chapter
   list search box (validated against the real 212-chapter *Wind and Truth*);
   and a "NEW" badge on books/series added since you last opened the app.
+- **Online metadata lookup** — an opt-in, Open Library–backed "Look up online"
+  button in the book view corrects title/author/description and fetches a
+  high-res cover, cached locally so the app stays offline-first after applying
+  (Tier 2 #5, shipped). Series-splitting from the original ask was descoped —
+  see the item for why.
 
 Known gaps carried forward as motivation: series volumes can share a display
 title, box sets stay whole, and merged `.m4b` parts collapse to one chapter each.
@@ -297,11 +302,67 @@ Turn a bookmark span into a short audio clip (via ffmpeg) or a shareable image
 card with cover + quote + timestamp. Differentiating and delightful; depends on
 bookmarks (Tier 1) and optionally transcripts (item 1) for auto-captioned quotes.
 
-### 5. Auto-fix metadata from online sources — **M/L**
-Look up Audible / Open Library / Google Books to correct titles, split series,
-fetch high-res covers and real descriptions. This is the *clean* fix for the
-series-title display collision and missing covers — replace guessed tags with
-authoritative data. Must be opt-in and cache locally (stay offline-first).
+### 5. Auto-fix metadata from online sources — **shipped** ✅
+A **Look up online** button in the book view searches Open Library by
+free-text query (pre-filled with the scanned title/author, editable), shows a
+picker with thumbnail/author/year for each match, and previews the full
+description before you apply it. Applying downloads the large cover, caches it
+locally, and stores a per-book override (title/author/description/cover) that
+wins over the scanned tags everywhere the book is displayed — chapters,
+duration, and tracks always stay from the real file, since an online source
+has no idea how *this* rip is chaptered. **Revert to file tags** removes the
+override and the cached cover in one click.
+
+Opt-in, gated behind an explanation shown the first time you click the button
+(what it sends, that it's manual-only, that results are cached locally); off
+by default; nothing is looked up automatically at any other time. Overrides
+persist in `metadata-overrides.json` / `covers-online\` and round-trip through
+the existing backup/restore feature (cached cover *images* aren't included in
+backups — they're re-fetchable — but the override records are).
+
+Source is Open Library only, decided empirically rather than assumed: Google
+Books' keyless API returned a 429 quota error on the very first test call,
+before a single real query shipped, which would force every user to configure
+their own API key just for an opt-in convenience — rejected. Audible has no
+public API and scraping it is a ToS risk out of scope for this app. Open
+Library's general free-text search (not the strict `title=`/`author=` field
+search) was needed too — the strict form returned zero results against this
+library's real, sometimes-garbage scanned author tags on books that a
+free-text search found correctly, including surfacing the *actually correct*
+author name ("T. L. Mancour") where the scanned tag was wrong ("Terry
+Mancour"). Open Library's `description` field is also inconsistent — some
+records hold physical-copy metadata ("746 pages ; 23 cm") instead of a real
+blurb — filtered out so it's never shown as if it were a real description.
+
+**Series-splitting is descoped.** The original ask included using this lookup
+to split series/box-set titles apart. Open Library's series data proved too
+sparse and inconsistent across this library's real books to build a reliable
+splitting feature on top of — this stays a metadata-correction tool, not a
+re-grouping one. The series-title display collision this was meant to help
+with is still primarily addressed by the existing renderer-side
+[series grouping](../README.md#series-grouping) from Tier 1, and remains a
+documented [known limitation](../README.md#known-limitations) for books that
+aren't (or can't be) corrected here.
+
+*Tested:* the Open Library client (`metadata-lookup.js`) against real network
+data — 14 checks covering empty-query rejection, a real search finding the
+correct book and correcting its author, description-field junk-filtering vs. a
+genuine 1,364-char description passing through, cover download (real JPEG,
+not Open Library's tiny placeholder), and graceful handling of a
+zero-result query and a missing work key. The full UI flow — opt-in gate,
+search, pick, preview (including the description arriving after a stale pick
+is correctly ignored), apply, revert — was driven end-to-end via CDP against
+the real running app and its real 6,324-book library: applying "Warmage:
+Spellmonger, Book 2" → "Warmage" by "T. L. Mancour" correctly updated the
+book's title/author/description/cover everywhere (header, badge, library
+grid) and downloaded a real cover to `covers-online\`; reverting correctly
+restored the scanned tags and deleted the cached override and cover file, with
+`metadata-overrides.json` confirmed empty on disk afterward. Also confirmed
+live: the opt-in flag persists across the modal reopening, an empty query is
+rejected without a network call, a nonsense query returns "No matches found"
+rather than an error, and a real Open Library cover thumbnail loads in the
+results list under the app's CSP (`img-src` allows `covers.openlibrary.org`
+specifically, nothing broader).
 
 ### 6. Read-along / immersion reading (audio + ebook) — **L** ⭐
 The library holds **354 `.epub`, 139 `.mobi`, 116 `.pdf`** sitting next to audio
