@@ -3,13 +3,14 @@
 const path = require('node:path');
 const { app } = require('electron');
 
-// The standard per-user app-data location (%APPDATA%\Tomelight on Windows) —
-// every real install starts here empty; a user adds their own library folder
-// on first launch. `TOMELIGHT_DATA_ROOT` overrides this for local dev (this
-// developer's own machine points it at a D: drive), but that must never be
-// the *default* baked into the shipped app: it's this machine's convention,
-// not a real user's, and a plain install can't assume a D: drive even exists.
-const DATA_ROOT = process.env.TOMELIGHT_DATA_ROOT || path.join(app.getPath('appData'), 'Tomelight');
+// The standard per-user app-data location (%APPDATA%\Midnight Athenaeum on
+// Windows) — every real install starts here empty; a user adds their own
+// library folder on first launch. `MIDNIGHT_ATHENAEUM_DATA_ROOT` overrides
+// this for local dev (this developer's own machine points it at a D: drive),
+// but that must never be the *default* baked into the shipped app: it's this
+// machine's convention, not a real user's, and a plain install can't assume
+// a D: drive even exists.
+const DATA_ROOT = process.env.MIDNIGHT_ATHENAEUM_DATA_ROOT || path.join(app.getPath('appData'), 'Midnight Athenaeum');
 
 module.exports = {
   DATA_ROOT,
@@ -26,5 +27,5 @@ module.exports = {
   // Default location backups are offered/looked for. A sibling of DATA_ROOT
   // (not inside it) on purpose: deleting or corrupting the live data folder
   // must not take the backups down with it.
-  BACKUP_DIR: path.join(path.dirname(DATA_ROOT), 'Tomelight-Backups'),
+  BACKUP_DIR: path.join(path.dirname(DATA_ROOT), 'Midnight Athenaeum Backups'),
 };

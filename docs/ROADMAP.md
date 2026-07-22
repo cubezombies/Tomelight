@@ -178,7 +178,7 @@ re-adding as a fresh bookmark. A second toast silently replaces a pending one
 **File → Backup data…** / **Restore from backup…**, next to the existing "Open
 data folder". Bundles the three stores into one timestamped JSON envelope rather
 than a real zip — no archive library needed, and it stays human-inspectable —
-defaulting to `%APPDATA%\Tomelight-Backups`, a **sibling** of the data folder so
+defaulting to `%APPDATA%\Midnight Athenaeum Backups`, a **sibling** of the data folder so
 deleting/corrupting the live folder can't take the backup with it. Restore reads
 and validates the file, shows what it contains (counts, backup date) in a native
 confirm dialog, and only applies on confirmation — this replaces current data and
@@ -261,7 +261,7 @@ app targets Windows.
 
 ### 17. "Recently added" indicator on cards — **shipped** ✅
 A small accent "NEW" pill on a book's cover for anything added since the last
-time you opened Tomelight — top-right on a plain card, top-left on a series
+time you opened Midnight Athenaeum — top-right on a plain card, top-left on a series
 tile (opposite corners from the existing volume-# and count badges, so nothing
 collides). A series tile shows NEW if *any* volume inside it is new; without
 that, a newly added volume of a series you already own would be invisible

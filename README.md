@@ -1,6 +1,6 @@
-# Tomelight
+# Midnight Athenaeum
 
-![Tomelight](assets/logo.png)
+![Midnight Athenaeum](assets/logo.png)
 
 A desktop audiobook player for Windows, built with Electron. Plays local files with
 real chapter navigation, per-book resume, per-book playback speed, bookmarks,
@@ -34,7 +34,7 @@ npm start
 On first launch, click **Folders** in the top bar to add your audiobook
 directory. The same panel lists every folder currently in your library — each
 with a live book count — and lets you remove one, which drops its books from
-Tomelight without touching anything on disk. Removing a folder that holds
+Midnight Athenaeum without touching anything on disk. Removing a folder that holds
 thousands of books asks for confirmation first, since there's no undo.
 
 You can also just **drag a folder onto the window** — it shows a drop-zone
@@ -44,14 +44,14 @@ is rejected with a toast rather than silently doing nothing.
 
 ## Installer
 
-The easiest way to install Tomelight is to grab the prebuilt installer from
-[**Releases**](https://github.com/cubezombies/Tomelight/releases/latest) —
-download `Tomelight-Setup-<version>.exe` and run it. No admin rights needed.
+The easiest way to install Midnight Athenaeum is to grab the prebuilt installer from
+[**Releases**](https://github.com/cubezombies/MidnightAthenaeum/releases/latest) —
+download `MidnightAthenaeum-Setup-<version>.exe` and run it. No admin rights needed.
 
 It's a per-user NSIS installer — the standard default install location
-(`%LOCALAPPDATA%\Programs\Tomelight`), no admin rights needed. It adds Start
+(`%LOCALAPPDATA%\Programs\Midnight Athenaeum`), no admin rights needed. It adds Start
 Menu and Desktop shortcuts and registers an entry in *Settings → Apps* with
-its own uninstaller (`Uninstall Tomelight.exe`, also reachable from Apps). The
+its own uninstaller (`Uninstall Midnight Athenaeum.exe`, also reachable from Apps). The
 "Choose Install Location" page lets you pick a different folder if you'd
 rather — e.g. this developer's own machine installs everything to `D:`, a
 personal convention with no bearing on where it installs for anyone else.
@@ -64,9 +64,9 @@ will show an "unrecognized publisher" warning on first run — click **More
 info → Run anyway**.
 
 *Tested:* a full cycle using the actual downloaded release asset (not just a
-local build) — downloaded `Tomelight-Setup-0.1.0.exe` from the published
+local build) — downloaded `MidnightAthenaeum-Setup-0.1.0.exe` from the published
 Release, verified its SHA-256 against the digest GitHub recorded for it,
-installed it silently to the default `%LOCALAPPDATA%\Programs\Tomelight`
+installed it silently to the default `%LOCALAPPDATA%\Programs\Midnight Athenaeum`
 location, confirmed the installed app loads the real library over IPC exactly
 like the dev build, then uninstalled and confirmed the install directory,
 shortcuts, and registry entry were gone while the data folder was untouched.
@@ -91,7 +91,7 @@ npm install
 npm run dist
 ```
 
-produces `dist\Tomelight-Setup-<version>.exe` the same way the Release build
+produces `dist\MidnightAthenaeum-Setup-<version>.exe` the same way the Release build
 does. `npm run pack` builds an unpacked `dist\win-unpacked\` folder instead,
 for a quick smoke test without going through the installer.
 
@@ -160,14 +160,14 @@ un-focuses the box on a second press, rather than leaving the book view.
 
 A fresh install starts completely empty — no bundled or sample library data
 — and everything you add lives under the standard per-user app-data folder,
-`%APPDATA%\Tomelight\` (`C:\Users\<you>\AppData\Roaming\Tomelight\`).
+`%APPDATA%\Midnight Athenaeum\` (`C:\Users\<you>\AppData\Roaming\Midnight Athenaeum\`).
 Paths are set in `src/main/paths.js` and can be redirected with the
-`TOMELIGHT_DATA_ROOT` environment variable (this developer's own machine
+`MIDNIGHT_ATHENAEUM_DATA_ROOT` environment variable (this developer's own machine
 points it at a `D:` drive; that's a personal preference, not something the
 installer assumes for anyone else).
 
 ```
-%APPDATA%\Tomelight\
+%APPDATA%\Midnight Athenaeum\
   userData\               Electron/Chromium profile and caches
   covers\                 extracted cover art
   covers-online\          covers fetched via the online metadata lookup
@@ -186,7 +186,7 @@ against each file's size and mtime, so rescans only reparse what changed.
 **File → Backup data…** bundles `progress.json`, `bookmarks.json`,
 `normalization.json`, and `metadata-overrides.json` into one timestamped JSON
 file and lets you choose where to save it — deliberately defaulting to
-`%APPDATA%\Tomelight-Backups`, a sibling of the data folder rather than
+`%APPDATA%\Midnight Athenaeum Backups`, a sibling of the data folder rather than
 something inside it, so deleting or corrupting the live data folder can't take
 the backup down with it too. Cached cover images from the online lookup aren't
 included (they're just re-fetchable), so a restored override may briefly show
@@ -278,7 +278,7 @@ data turned out to be too sparse and inconsistent across this library's real
 books to build a reliable feature on — it's a metadata-correction tool
 (title/author/description/cover), not a re-grouping one. The existing
 [series detection](#series-grouping) (parsed from the title/author already in
-Tomelight) and the [known series-tagged-title limitation](#known-limitations)
+Midnight Athenaeum) and the [known series-tagged-title limitation](#known-limitations)
 above are unaffected by this feature.
 
 ## Keyboard
@@ -296,7 +296,7 @@ above are unaffected by this feature.
 
 ## Windows media integration
 
-Tomelight shows up in the Windows media flyout (the popup on the volume
+Midnight Athenaeum shows up in the Windows media flyout (the popup on the volume
 overlay / `Win+G`-adjacent media panel) and the lock screen, with the current
 book's title, author, and cover, and the subtitle updates live to the current
 chapter as you listen. Hardware and keyboard media keys (play/pause,
@@ -310,11 +310,11 @@ The taskbar button also gets its own **thumbnail-toolbar** (hover over the
 taskbar icon) with previous chapter / play-pause / next chapter buttons, and
 right-clicking the taskbar icon (or the Start tile, if pinned) shows a
 **Continue Listening** jump list of your most recently-played books — click
-one to jump straight to it, launching Tomelight if it isn't already running.
+one to jump straight to it, launching Midnight Athenaeum if it isn't already running.
 The jump list depends on Windows' own "Show recently opened items in Start,
 Jump Lists, and File Explorer" setting (Settings → Personalization → Start);
 if that's off, the list just won't appear — nothing to configure on
-Tomelight's side.
+Midnight Athenaeum's side.
 
 ## Finding your place
 
@@ -354,7 +354,7 @@ this groups ~360 series covering ~1,500 books; the rest show individually.
 
 ### "NEW" badge
 
-Books added since you last opened Tomelight get a small **NEW** pill on their
+Books added since you last opened Midnight Athenaeum get a small **NEW** pill on their
 cover, Spotify/Netflix-style — useful for a library that keeps growing. It
 clears the next time you open the app, not the moment you glance at it, so it
 doesn't disappear before you've actually had a chance to notice it. A brand new

@@ -23,7 +23,7 @@ const path = require('node:path');
 
 // Open Library asks API consumers to identify themselves; see
 // https://openlibrary.org/dev/docs/api/search
-const USER_AGENT = 'Tomelight/1.0 (Electron audiobook player; github.com/cubezombies/Tomelight)';
+const USER_AGENT = 'MidnightAthenaeum/1.0 (Electron audiobook player; github.com/cubezombies/MidnightAthenaeum)';
 const TIMEOUT_MS = 10_000;
 
 function withTimeout() {

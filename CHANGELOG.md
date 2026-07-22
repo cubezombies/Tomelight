@@ -1,12 +1,26 @@
 # Changelog
 
-All notable changes to Tomelight are documented here. Format loosely follows
+All notable changes to Midnight Athenaeum are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Each entry below is
 also what gets attached as the GitHub Release's notes for that version (and
 what the in-app "Check for Updates" screen shows) — see
 `scripts/extract-changelog.cjs`.
 
 ## [Unreleased]
+
+## [0.4.0] - 2026-07-22
+### Changed
+- Renamed from **Tomelight** to **Midnight Athenaeum**. The Tomelight name
+  turned out to collide with an existing product (tomelight.com, an
+  AI-powered D&D campaign tool) — picked after several rounds of checking
+  candidates against npm, web search, and actual `.com` domains, since the
+  first few "clean" picks each turned out to have their own real collisions
+  once checked more thoroughly. Everything user-facing changed: the app
+  itself, the installer, the GitHub repo, and the default data folder
+  (`%APPDATA%\Midnight Athenaeum`, was `%APPDATA%\Tomelight`;
+  `MIDNIGHT_ATHENAEUM_DATA_ROOT` replaces `TOMELIGHT_DATA_ROOT` as the local
+  dev override). Old backup files (`"app": "Tomelight"`) still restore fine —
+  only the default paths and branding changed, not the data format.
 
 ## [0.3.0] - 2026-07-22
 ### Added

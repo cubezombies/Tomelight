@@ -10,10 +10,10 @@ const {
   METADATA_FILE, DATA_ROOT, COVER_CACHE, ONLINE_COVER_CACHE, BACKUP_DIR,
 } = require('./paths');
 
-app.setName('Tomelight');
+app.setName('Midnight Athenaeum');
 // Matches build.appId in package.json — keeps the taskbar jump list, thumbbar
 // grouping, and shortcut identity consistent with what the installer registers.
-app.setAppUserModelId('com.cubezombies.tomelight');
+app.setAppUserModelId('com.cubezombies.midnightathenaeum');
 
 // A jump-list click launches a *second* process with --open-book=<id>; without
 // this, that would open a confusing second window instead of focusing the
@@ -173,7 +173,7 @@ function createWindow() {
     minWidth: 940,
     minHeight: 600,
     backgroundColor: '#12121a',
-    title: 'Tomelight',
+    title: 'Midnight Athenaeum',
     icon: path.join(__dirname, '..', '..', 'build', 'icon.ico'),
     show: false,
     webPreferences: {
@@ -211,7 +211,7 @@ function openAbout() {
     parent: mainWindow ?? undefined,
     modal: Boolean(mainWindow),
     backgroundColor: '#12121a',
-    title: 'About Tomelight',
+    title: 'About Midnight Athenaeum',
     icon: path.join(__dirname, '..', '..', 'build', 'icon.ico'),
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
@@ -249,14 +249,14 @@ async function createBackup() {
 
   const dateStr = new Date().toISOString().slice(0, 10);
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-    title: 'Backup Tomelight data',
-    defaultPath: path.join(BACKUP_DIR, `tomelight-backup-${dateStr}.json`),
-    filters: [{ name: 'Tomelight Backup', extensions: ['json'] }],
+    title: 'Backup Midnight Athenaeum data',
+    defaultPath: path.join(BACKUP_DIR, `midnight-athenaeum-backup-${dateStr}.json`),
+    filters: [{ name: 'Midnight Athenaeum Backup', extensions: ['json'] }],
   });
   if (canceled || !filePath) return;
 
   const bundle = {
-    app: 'Tomelight',
+    app: 'Midnight Athenaeum',
     formatVersion: 1,
     exportedAt: new Date().toISOString(),
     progress: progressStore.get(),
@@ -287,10 +287,10 @@ async function restoreBackup() {
   if (!mainWindow) return;
 
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-    title: 'Restore Tomelight data from backup',
+    title: 'Restore Midnight Athenaeum data from backup',
     defaultPath: BACKUP_DIR,
     properties: ['openFile'],
-    filters: [{ name: 'Tomelight Backup', extensions: ['json'] }],
+    filters: [{ name: 'Midnight Athenaeum Backup', extensions: ['json'] }],
   });
   if (canceled || !filePaths.length) return;
 
@@ -302,12 +302,14 @@ async function restoreBackup() {
     return;
   }
 
-  const isValid = bundle && bundle.app === 'Tomelight'
+  // 'Tomelight' is this app's old name (renamed pre-1.0) — still accepted so
+  // a backup made before the rename isn't stranded.
+  const isValid = bundle && (bundle.app === 'Midnight Athenaeum' || bundle.app === 'Tomelight')
     && bundle.progress && typeof bundle.progress === 'object'
     && bundle.bookmarks && typeof bundle.bookmarks === 'object'
     && bundle.normalization && typeof bundle.normalization === 'object';
   if (!isValid) {
-    dialog.showErrorBox('Restore failed', 'That file does not look like a Tomelight backup.');
+    dialog.showErrorBox('Restore failed', 'That file does not look like a Midnight Athenaeum backup.');
     return;
   }
   // Backups made before the online-metadata feature shipped won't have this
@@ -399,7 +401,7 @@ function buildMenu() {
           click: () => mainWindow?.webContents.send('updates:open'),
         },
         { type: 'separator' },
-        { label: 'About Tomelight', click: () => openAbout() },
+        { label: 'About Midnight Athenaeum', click: () => openAbout() },
       ],
     },
   ];

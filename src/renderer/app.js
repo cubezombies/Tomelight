@@ -441,7 +441,7 @@ async function removeFolder(folder, bookCount) {
   // most other actions in the app — worth a native confirm even before the
   // general confirm-before-destructive-action treatment lands.
   const msg = bookCount
-    ? `Remove this folder from your library?\n\n${folder}\n\nThis removes ${bookCount.toLocaleString()} book${bookCount === 1 ? '' : 's'} from Tomelight. The files on disk are not touched.`
+    ? `Remove this folder from your library?\n\n${folder}\n\nThis removes ${bookCount.toLocaleString()} book${bookCount === 1 ? '' : 's'} from Midnight Athenaeum. The files on disk are not touched.`
     : `Remove this folder from your library?\n\n${folder}`;
   if (!window.confirm(msg)) return;
 

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>About Tomelight</title>
+  <title>About Midnight Athenaeum</title>
   <style>
     :root {
       --bg: #12121a; --text: #ececf2; --muted: #9a9ab0; --accent: #7c6cf5; --line: #2e2e3d;
@@ -20,7 +20,11 @@
       width: 100%; max-width: 440px; border-radius: 12px;
       border: 1px solid var(--line); display: block;
     }
-    .version { margin-top: 18px; color: var(--muted); font-size: 13px; }
+    .heading {
+      margin: 16px 0 0; font-size: 22px; font-weight: 600;
+      letter-spacing: 0.02em; color: var(--text);
+    }
+    .version { margin-top: 8px; color: var(--muted); font-size: 13px; }
     .version b { color: var(--text); font-weight: 600; }
     .tagline { margin-top: 12px; color: var(--muted); max-width: 400px; }
     .links { margin-top: 18px; display: flex; gap: 10px; }
@@ -36,7 +40,8 @@
   </style>
 </head>
 <body>
-  <img class="logo" src="../../assets/logo.png" alt="Tomelight" />
+  <img class="logo" src="../../assets/logo.png" alt="Midnight Athenaeum" />
+  <h1 class="heading">Midnight Athenaeum</h1>
 
   <div class="version">Version <b id="version">—</b></div>
   <p class="tagline">
@@ -45,12 +50,12 @@
   </p>
 
   <div class="links">
-    <a class="btn" href="https://github.com/cubezombies/Tomelight" target="_blank" rel="noreferrer">View on GitHub</a>
+    <a class="btn" href="https://github.com/cubezombies/MidnightAthenaeum" target="_blank" rel="noreferrer">View on GitHub</a>
     <a class="btn" href="https://ko-fi.com/moregan" target="_blank" rel="noreferrer">☕ Support on Ko-fi</a>
     <button class="btn primary" id="closeBtn">Close</button>
   </div>
 
-  <div class="copyright">Built with Electron · tome + light</div>
+  <div class="copyright">Built with Electron · open until midnight</div>
 
   <script>
     document.getElementById('version').textContent =

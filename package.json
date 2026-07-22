@@ -1,8 +1,8 @@
 {
-  "name": "tomelight",
-  "productName": "Tomelight",
+  "name": "midnight-athenaeum",
+  "productName": "Midnight Athenaeum",
   "version": "0.3.0",
-  "description": "Tomelight — a desktop audiobook player with m4b chapter support and a sleep timer",
+  "description": "Midnight Athenaeum — a desktop audiobook player with m4b chapter support and a sleep timer",
   "main": "src/main/main.js",
   "author": "cubezombies",
   "scripts": {
@@ -28,8 +28,8 @@
     "electron-winstaller@5.4.0": true
   },
   "build": {
-    "appId": "com.cubezombies.tomelight",
-    "productName": "Tomelight",
+    "appId": "com.cubezombies.midnightathenaeum",
+    "productName": "Midnight Athenaeum",
     "copyright": "Copyright © 2026 cubezombies",
     "asar": true,
     "directories": {
@@ -39,7 +39,7 @@
     "publish": {
       "provider": "github",
       "owner": "cubezombies",
-      "repo": "Tomelight",
+      "repo": "MidnightAthenaeum",
       "releaseType": "release"
     },
     "files": [
@@ -67,11 +67,11 @@
       "differentialPackage": false,
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
-      "uninstallDisplayName": "Tomelight",
+      "uninstallDisplayName": "Midnight Athenaeum",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Tomelight",
-      "artifactName": "Tomelight-Setup-${version}.${ext}"
+      "shortcutName": "Midnight Athenaeum",
+      "artifactName": "MidnightAthenaeum-Setup-${version}.${ext}"
     }
   }
 }
