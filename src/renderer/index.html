@@ -393,6 +393,24 @@
     </div>
   </div>
 
+  <div id="duplicatesModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="duplicatesModalTitle">
+    <div class="modal-box duplicates-modal">
+      <div class="modal-header">
+        <h3 id="duplicatesModalTitle">Duplicate books</h3>
+        <button id="duplicatesModalClose" class="icon-btn" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg></button>
+      </div>
+      <p class="muted small">
+        Grouped by matching title, author, and audio length/track count — same
+        title with a genuinely different recording (a different narrator, say)
+        is shown for context but never offered for removal. Removing a copy
+        sends its file(s) to the Recycle Bin, not a permanent delete.
+      </p>
+      <input id="duplicatesFilter" type="search" placeholder="Filter by title or author…" aria-label="Filter duplicate results" />
+      <div id="duplicatesStatus" class="muted small" role="status" aria-live="polite">Scanning…</div>
+      <div id="duplicatesList" class="duplicates-list"></div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

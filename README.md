@@ -308,6 +308,24 @@ Per-chapter summaries are out of scope for now — Whisper transcribes, it
 doesn't summarize, and doing that well would need its own model/approach
 decision rather than an extension of this feature.
 
+## Finding duplicate books
+
+**File → Find duplicate books…** scans your already-scanned library for the
+same book filed in more than one place — no new file access, just grouping
+data that's already there. Books are grouped by title and author, then split
+into distinct *recordings* by matching audio length and track count: a
+recording with two or more copies is a real duplicate; a same-title
+recording with only one copy — a different narrator, say — is shown for
+context but never offered for removal. Both cases turn up in real libraries
+side by side (three different narrators of the same book is not the same
+thing as the same file copied into two category folders), so telling them
+apart correctly is the point of the feature, not an edge case.
+
+Removing a copy sends its file(s) to the Recycle Bin, never a permanent
+delete, and only ever the files that book actually owns — never the whole
+containing folder, since a folder can hold other, unrelated books alongside
+it. The library updates immediately; no rescan needed.
+
 ## Keyboard
 
 | Key | Action |

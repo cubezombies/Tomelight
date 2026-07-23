@@ -8,6 +8,21 @@ what the in-app "Check for Updates" screen shows) — see
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-22
+### Added
+- **File → Find duplicate books…** — scans the already-scanned library (no
+  new file access) for the same book filed in more than one place. Groups
+  by title+author, then splits into distinct *recordings* by matching
+  duration/track count: a recording with 2+ copies is a real duplicate and
+  offered for removal; a same-title recording with only 1 copy (a
+  different narrator someone deliberately collected) is shown for context
+  but never offered for removal — verified against a real library where
+  both cases exist side by side (three different narrators of the same
+  book vs. the same file copied across category folders). Removal moves
+  the book's own files to the Recycle Bin (never the containing folder,
+  which can hold unrelated sibling books) and updates the library
+  immediately, no rescan needed.
+
 ## [0.5.1] - 2026-07-22
 ### Fixed
 - Multi-part books using a "(01of17)"-style folder-per-disc naming

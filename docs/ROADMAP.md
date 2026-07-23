@@ -80,6 +80,13 @@ Already shipped, so it is not repeated in the lists below:
   asar was the real risk here, not transcription itself — verified against
   an actual packaged build before shipping. Per-chapter summaries descoped
   (needs its own model/approach). Shipped 2026-07-22.
+- **Duplicate book detection** — **File → Find duplicate books…** groups the
+  already-scanned library by title+author, splitting into distinct
+  recordings by matching duration/track count so genuinely different
+  narrations are never confused with real duplicates (Tier 2 #9, shipped).
+  Removal goes to the Recycle Bin, one book's own files only. Validated
+  against this library: 376 titles, 468 removable copies found. Shipped
+  2026-07-22.
 
 Known gaps carried forward as motivation: series volumes can share a display
 title, box sets stay whole, and merged `.m4b` parts collapse to one chapter each.
@@ -470,6 +477,24 @@ the shipped build; the feature is fully wired but inert until one is set.
 A speech-tuned EQ (cut low rumble, lift high-mids) that keeps dialogue crisp at
 2.5–3× where deep-voiced narration turns muddy. A Web Audio `BiquadFilter` chain
 plus a "Voice Boost" toggle. Genuinely useful for fast listeners.
+
+### 9. Library organization: duplicate detection — **shipped** ✅
+**File → Find duplicate books…** groups the already-scanned library by
+title+author, then splits into distinct *recordings* by matching duration
+and track count — only a recording with 2+ copies is a real duplicate and
+offered for removal (to the Recycle Bin, never permanent, and never the
+containing folder, which can hold unrelated sibling books). Researched
+first: no audiobook player on the market combines playback with duplicate
+detection — even Audiobookshelf has "merge duplicates" as an open,
+unshipped feature request. Validated against this library's real ~6,300
+books: 376 titles with at least one real duplicate, 468 removable copies,
+found alongside titles with 2-3 *genuinely different* narrators (never
+flagged) — confirming the recording-matching split is doing real work, not
+just title-matching.
+*Still possible:* reorganize-by-author/series and genre-from-folder — much
+higher risk (bulk file moves across the whole library), scoped as a
+separate future project with mandatory preview/dry-run, not an extension of
+this pass.
 
 ---
 

@@ -50,6 +50,8 @@ contextBridge.exposeInMainWorld('api', {
   getTranscribeStatus: (bookId) => ipcRenderer.invoke('transcribe:getStatus', bookId),
   getTranscript: (bookId) => ipcRenderer.invoke('transcript:get', bookId),
   deleteTranscript: (bookId) => ipcRenderer.invoke('transcript:delete', bookId),
+  findDuplicates: () => ipcRenderer.invoke('duplicates:find'),
+  removeDuplicateBook: (bookId) => ipcRenderer.invoke('duplicates:remove', bookId),
 
   onLibraryChanged: (cb) => {
     const listener = (_event, state) => cb(state);
@@ -85,5 +87,10 @@ contextBridge.exposeInMainWorld('api', {
     const listener = (_event, info) => cb(info);
     ipcRenderer.on('transcribe:progress', listener);
     return () => ipcRenderer.off('transcribe:progress', listener);
+  },
+  onOpenDuplicates: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on('duplicates:open', listener);
+    return () => ipcRenderer.off('duplicates:open', listener);
   },
 });

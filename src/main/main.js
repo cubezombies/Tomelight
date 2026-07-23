@@ -47,6 +47,7 @@ const updater = require('./updater');
 const taskbar = require('./taskbar');
 const discord = require('./discord-presence');
 const transcriber = require('./transcribe');
+const duplicates = require('./duplicates');
 
 registerScheme();
 
@@ -512,6 +513,8 @@ function buildMenu() {
         { label: 'Change library location…', click: () => changeDataLocation() },
         { label: 'Reset library location to default', click: () => resetDataLocation() },
         { type: 'separator' },
+        { label: 'Find duplicate books…', click: () => mainWindow?.webContents.send('duplicates:open') },
+        { type: 'separator' },
         { role: 'quit' },
       ],
     },
@@ -904,6 +907,56 @@ function registerIpc() {
 
   ipcMain.handle('transcript:delete', (_event, bookId) => {
     if (typeof bookId === 'string') transcriber.deleteTranscript(bookId);
+  });
+
+  /** Lightweight book shape for the duplicates view — not the full toClientBook (no chapters needed). */
+  function toDupeSummary(book) {
+    return {
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      sourceDir: book.sourceDir,
+      duration: book.duration,
+      trackCount: book.tracks.length,
+      coverUrl: book.cover ? mediaUrl(book.cover) : null,
+    };
+  }
+
+  ipcMain.handle('duplicates:find', () => {
+    const reports = duplicates.findDuplicateGroups(libraryStore.get().books);
+    return reports.map((r) => ({
+      title: r.title,
+      author: r.author,
+      recordings: r.recordings.map((rec) => ({
+        trackCount: rec.trackCount,
+        duration: rec.duration,
+        books: rec.books.map(toDupeSummary),
+      })),
+    }));
+  });
+
+  /**
+   * Moves one duplicate copy's own files to the Recycle Bin (never the
+   * containing folder — confirmed in this library that a folder can hold
+   * several unrelated single-file books side by side) and drops it from the
+   * library immediately, without needing a full rescan.
+   */
+  ipcMain.handle('duplicates:remove', async (_event, bookId) => {
+    if (typeof bookId !== 'string') return { ok: false, error: 'Invalid book.' };
+    const state = libraryStore.get();
+    const book = state.books.find((b) => b.id === bookId);
+    if (!book) return { ok: false, error: 'Book not found.' };
+
+    const results = await duplicates.trashBookFiles(book);
+    const failed = results.filter((r) => !r.ok);
+    if (failed.length === results.length) {
+      return { ok: false, error: `Could not move to the Recycle Bin: ${failed[0]?.error || 'unknown error'}` };
+    }
+
+    libraryStore.set({ ...state, books: state.books.filter((b) => b.id !== bookId) });
+    mainWindow?.webContents.send('library:changed', currentState());
+    refreshJumpList();
+    return { ok: true, partial: failed.length > 0 };
   });
 
   // One-shot: consumed by the renderer on bootstrap so a jump-list launch

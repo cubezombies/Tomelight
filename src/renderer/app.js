@@ -38,6 +38,9 @@ const el = {
   transcriptModal: $('transcriptModal'), transcriptModalClose: $('transcriptModalClose'),
   transcriptSearchForm: $('transcriptSearchForm'), transcriptQuery: $('transcriptQuery'),
   transcriptStatus: $('transcriptStatus'), transcriptResults: $('transcriptResults'),
+  duplicatesModal: $('duplicatesModal'), duplicatesModalClose: $('duplicatesModalClose'),
+  duplicatesFilter: $('duplicatesFilter'), duplicatesStatus: $('duplicatesStatus'),
+  duplicatesList: $('duplicatesList'),
   updatesBtn: $('updatesBtn'), updatesDot: $('updatesDot'), discordBtn: $('discordBtn'),
   updatesModal: $('updatesModal'), updatesModalClose: $('updatesModalClose'),
   updatesCurrentVersion: $('updatesCurrentVersion'), updatesStatus: $('updatesStatus'),
@@ -138,6 +141,7 @@ const state = {
   transcriptCache: new Map(), // bookId -> { segments: [...] } | null (null = fetched, has none)
   captionsOn: localStorage.getItem('captionsOn') === '1',
   captionIndex: -1, // index into the current transcript's segments last shown as a caption
+  duplicateReports: [], // last result from duplicates:find, re-fetched after any removal
 };
 
 let gridObserver = null;
@@ -2229,6 +2233,138 @@ function updateCaption() {
   }
   el.captionsBar.textContent = data.segments[idx].text;
   el.captionsBar.classList.remove('hidden');
+}
+
+/* ----------------
+ * Duplicate books (File > Find duplicate books…) — reads the already-scanned
+ * library, no new file access. Grouped server-side by title+author, then
+ * split into distinct "recordings" by matching duration/track count; only a
+ * recording with 2+ copies is offered for removal, since a different
+ * narrator of the same title is a real, deliberate collection, not a
+ * duplicate (confirmed against this library — see duplicates.js).
+ * ---------------- */
+
+function formatDupeDuration(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function closeDuplicatesModal() {
+  el.duplicatesModal.classList.add('hidden');
+}
+
+async function openDuplicatesModal() {
+  el.duplicatesModal.classList.remove('hidden');
+  el.duplicatesFilter.value = '';
+  el.duplicatesList.replaceChildren();
+  el.duplicatesStatus.textContent = 'Scanning…';
+  state.duplicateReports = await window.api.findDuplicates();
+  renderDuplicateReports('');
+}
+window.api.onOpenDuplicates(openDuplicatesModal);
+el.duplicatesModalClose.addEventListener('click', closeDuplicatesModal);
+el.duplicatesModal.addEventListener('click', (e) => {
+  if (e.target === el.duplicatesModal) closeDuplicatesModal();
+});
+el.duplicatesModal.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.stopPropagation(); closeDuplicatesModal(); }
+});
+el.duplicatesFilter.addEventListener('input', () => renderDuplicateReports(el.duplicatesFilter.value));
+
+function renderDuplicateReports(query) {
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? state.duplicateReports.filter((r) => r.title.toLowerCase().includes(q) || (r.author || '').toLowerCase().includes(q))
+    : state.duplicateReports;
+
+  const totalExtra = state.duplicateReports.reduce((sum, r) =>
+    sum + r.recordings.reduce((s, rec) => s + Math.max(0, rec.books.length - 1), 0), 0);
+  el.duplicatesStatus.textContent = state.duplicateReports.length
+    ? `${state.duplicateReports.length.toLocaleString()} title${state.duplicateReports.length === 1 ? '' : 's'} with duplicates, `
+      + `${totalExtra.toLocaleString()} removable cop${totalExtra === 1 ? 'y' : 'ies'}`
+      + (q ? ` — showing ${filtered.length.toLocaleString()} matching "${query.trim()}"` : '')
+    : 'No duplicates found.';
+
+  el.duplicatesList.replaceChildren();
+  const frag = document.createDocumentFragment();
+  for (const report of filtered) {
+    const card = document.createElement('div');
+    card.className = 'dupe-group';
+
+    const title = document.createElement('div');
+    title.className = 'dupe-group-title';
+    title.textContent = report.title;
+    const author = document.createElement('div');
+    author.className = 'dupe-group-author';
+    author.textContent = report.author || 'Unknown author';
+    card.append(title, author);
+
+    for (const rec of report.recordings) {
+      const recWrap = document.createElement('div');
+      recWrap.className = 'dupe-recording';
+
+      const isDup = rec.books.length >= 2;
+      const meta = document.createElement('div');
+      meta.className = `dupe-recording-meta${isDup ? '' : ' single'}`;
+      meta.textContent = isDup
+        ? `${rec.books.length} copies · ${formatDupeDuration(rec.duration)} · ${rec.trackCount} file${rec.trackCount === 1 ? '' : 's'}`
+        : `Also available: ${formatDupeDuration(rec.duration)}, ${rec.trackCount} file${rec.trackCount === 1 ? '' : 's'} — different recording, not a duplicate`;
+      recWrap.append(meta);
+
+      for (const book of rec.books) {
+        const row = document.createElement('div');
+        row.className = 'dupe-copy';
+
+        const cover = document.createElement('img');
+        cover.className = 'dupe-copy-cover';
+        cover.src = book.coverUrl || '';
+        cover.alt = '';
+        row.append(cover);
+
+        const pathEl = document.createElement('div');
+        pathEl.className = 'dupe-copy-path';
+        pathEl.textContent = book.sourceDir;
+        pathEl.title = book.sourceDir;
+        row.append(pathEl);
+
+        if (isDup) {
+          const removeBtn = document.createElement('button');
+          removeBtn.className = 'dupe-copy-remove';
+          removeBtn.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-trash"></use></svg>';
+          removeBtn.title = 'Move this copy to the Recycle Bin';
+          removeBtn.setAttribute('aria-label', `Move to Recycle Bin: ${book.sourceDir}`);
+          removeBtn.addEventListener('click', () => removeDuplicateCopy(book, removeBtn, row));
+          row.append(removeBtn);
+        }
+
+        recWrap.append(row);
+      }
+      card.append(recWrap);
+    }
+    frag.append(card);
+  }
+  el.duplicatesList.append(frag);
+}
+
+async function removeDuplicateCopy(book, button, row) {
+  const proceed = window.confirm(
+    `Move this copy of "${book.title}" to the Recycle Bin?\n\n${book.sourceDir}\n\n`
+    + "This doesn't affect the other copy/copies, and you can restore it from the Recycle Bin if this was a mistake.",
+  );
+  if (!proceed) return;
+
+  button.disabled = true;
+  const result = await window.api.removeDuplicateBook(book.id);
+  if (!result.ok) {
+    showToast(result.error || 'Could not remove that copy.');
+    button.disabled = false;
+    return;
+  }
+  row.remove();
+  showToast(result.partial ? 'Moved to Recycle Bin (some files could not be moved).' : 'Moved to Recycle Bin.');
+  state.duplicateReports = await window.api.findDuplicates();
+  renderDuplicateReports(el.duplicatesFilter.value);
 }
 
 /* ----------------
