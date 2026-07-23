@@ -359,6 +359,7 @@ you'd like an extra safety net beyond the built-in undo.
 | `B` | Add a bookmark at the current spot |
 | `S` | Toggle skip-silence |
 | `N` | Toggle volume normalization |
+| `V` | Toggle Voice Boost EQ |
 | `T` | Open the sleep-timer menu |
 | `Esc` | Close the sleep menu, or go back to the library |
 
@@ -476,11 +477,22 @@ to bring it to a common level, stored in `normalization.json` and applied
 instantly on every later play. The gain is clamped and peak-limited so boosting a
 quiet book never clips.
 
-The audio runs through a small Web Audio graph
-(`source → analyser → normalize gain → volume gain → output`). Putting the
+The audio runs through a small Web Audio graph (`source → analyser →
+normalize gain → voice boost EQ → volume gain → output`). Putting the
 analyser first means loudness is measured at full scale regardless of your volume
 setting; putting volume in the graph (rather than on the element) means the
 measurement — and skip-silence — are unaffected by where you set the slider.
+
+## Voice Boost
+
+A speech-tuned EQ for fast listening, where deep-voiced narration turns muddy
+at 2.5–3×. The 🎚 button (off by default; `V` toggles) runs two
+`BiquadFilterNode`s: a highpass around 100Hz clears out low rumble that eats
+headroom without carrying intelligibility, and a peaking filter lifts the
+~2.8kHz consonant/sibilance range that actually separates words at speed.
+Both ramp in and out smoothly rather than snapping, and — like skip-silence
+and normalization — live in the shared Web Audio graph rather than the
+`<audio>` element itself, so it stacks cleanly with both.
 
 ## Sleep timer
 

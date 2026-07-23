@@ -253,6 +253,22 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  // Electron ships no edit context menu by default — right-clicking a text
+  // field does nothing unless the app builds one itself. Scoped to editable
+  // fields only (search boxes, metadata query, etc.), not general page text.
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    if (!params.isEditable) return;
+    Menu.buildFromTemplate([
+      { role: 'undo', enabled: params.editFlags.canUndo },
+      { role: 'redo', enabled: params.editFlags.canRedo },
+      { type: 'separator' },
+      { role: 'cut', enabled: params.editFlags.canCut },
+      { role: 'copy', enabled: params.editFlags.canCopy },
+      { role: 'paste', enabled: params.editFlags.canPaste },
+      { role: 'selectAll', enabled: params.editFlags.canSelectAll },
+    ]).popup();
+  });
+
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 

@@ -88,6 +88,12 @@
       <rect x="2" y="5" width="20" height="14" rx="2"/>
       <line x1="6" y1="10" x2="10" y2="10"/><line x1="6" y1="14" x2="14" y2="14"/><line x1="13" y1="10" x2="18" y2="10"/>
     </symbol>
+    <symbol id="icon-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+      <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+      <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
+    </symbol>
     <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
     </symbol>
@@ -290,6 +296,7 @@
           </select>
         </label>
         <button id="normalizeBtn" class="icon-btn normalize-btn" title="Normalize volume — even out loudness across books (N)" aria-label="Normalize volume" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#icon-scale"></use></svg></button>
+        <button id="voiceBoostBtn" class="icon-btn voiceboost-btn" title="Voice Boost — speech-tuned EQ for fast listening (V)" aria-label="Voice Boost" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#icon-sliders"></use></svg></button>
         <label class="extra">
           <span class="extra-label">Volume</span>
           <input id="volume" type="range" min="0" max="1" step="0.01" value="1" aria-label="Volume" />

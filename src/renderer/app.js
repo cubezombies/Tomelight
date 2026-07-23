@@ -66,7 +66,7 @@ const el = {
   sleep: $('sleep') || document.querySelector('.sleep'),
   sleepBtn: $('sleepBtn'), sleepLabel: $('sleepLabel'), sleepMenu: $('sleepMenu'),
   sleepSnooze: document.querySelector('.sleep-extend'),
-  skipSilenceBtn: $('skipSilenceBtn'), normalizeBtn: $('normalizeBtn'),
+  skipSilenceBtn: $('skipSilenceBtn'), normalizeBtn: $('normalizeBtn'), voiceBoostBtn: $('voiceBoostBtn'),
 };
 
 const SKIP_AMOUNTS = new Set([10, 15, 30, 45, 60]);
@@ -112,6 +112,7 @@ const state = {
   baseSpeed: 1,        // the user's chosen speed; skip-silence boosts above it
   silenceBoosting: false,
   normalize: localStorage.getItem('normalize') !== '0', // on by default
+  voiceBoost: localStorage.getItem('voiceBoost') === '1', // off by default — a coloring effect, opt in like skip-silence
   normalization: {},   // { [bookId]: measured gain }
   norm: null,          // in-progress loudness measurement for the current book
   groupSeries: localStorage.getItem('groupSeries') === '1',
@@ -1170,15 +1171,29 @@ const NORM_WARMUP = 200;       // gated samples before a first running estimate 
 const NORM_UPDATE_EVERY = 120; // re-estimate cadence while converging (~3s)
 const NORM_LOCK_SAMPLES = 1200; // gated samples to finalise + store (~30s of speech)
 
+// Voice Boost — a speech-tuned EQ for fast listening, where deep-voiced
+// narration turns muddy at 2.5-3x: a highpass clears out low rumble that
+// eats headroom without carrying intelligibility, and a presence peak lifts
+// the consonant/sibilance range that actually separates words at speed.
+// Off ramps both filters flat rather than removing them from the graph, the
+// same always-connected-just-ramp-the-value approach as normGain/volumeGain.
+const VOICE_HIGHPASS_ON_HZ = 100;   // below typical narration fundamentals
+const VOICE_HIGHPASS_OFF_HZ = 20;   // effectively no cut — below audible rumble
+const VOICE_PRESENCE_HZ = 2800;     // consonant/sibilance range that carries intelligibility
+const VOICE_PRESENCE_Q = 1;
+const VOICE_PRESENCE_GAIN_DB = 8;   // bumped from 6 -- the highpass alone is subtle on most
+                                     // speakers (they already roll off near 100Hz), so the
+                                     // presence lift is the lever that needs to be unmistakable
+
 let audioGraph = null;
 let audioGraphFailed = false;
 
 /**
  * Build the audio graph once (a media element can only be sourced once):
- *   source -> analyser -> normGain -> destination
- * The analyser taps before the gain so loudness is measured raw; the user's
+ *   source -> analyser -> normGain -> voiceHighpass -> voicePresence -> volumeGain -> destination
+ * The analyser taps before any gain/EQ so loudness is measured raw; the user's
  * volume is applied on el.audio (before the source tap) and compensated for when
- * reading levels, so both skip-silence and normalization are volume-independent.
+ * reading levels, so skip-silence and normalization are volume- and EQ-independent.
  */
 function ensureAudioGraph() {
   if (audioGraph || audioGraphFailed) return audioGraph;
@@ -1188,17 +1203,30 @@ function ensureAudioGraph() {
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 1024;
     const normGain = ctx.createGain();
+    const voiceHighpass = ctx.createBiquadFilter();
+    voiceHighpass.type = 'highpass';
+    const voicePresence = ctx.createBiquadFilter();
+    voicePresence.type = 'peaking';
+    voicePresence.frequency.value = VOICE_PRESENCE_HZ;
+    voicePresence.Q.value = VOICE_PRESENCE_Q;
     const volumeGain = ctx.createGain();
     source.connect(analyser);
     analyser.connect(normGain);
-    normGain.connect(volumeGain);
+    normGain.connect(voiceHighpass);
+    voiceHighpass.connect(voicePresence);
+    voicePresence.connect(volumeGain);
     volumeGain.connect(ctx.destination);
-    audioGraph = { ctx, analyser, normGain, volumeGain, buf: new Float32Array(analyser.fftSize) };
+    audioGraph = {
+      ctx, analyser, normGain, voiceHighpass, voicePresence, volumeGain,
+      buf: new Float32Array(analyser.fftSize),
+    };
     // Volume now lives in the graph (after the analyser), so the analyser always
     // sees the raw full-scale signal — measurement and silence detection are
     // volume-independent. The element's own volume is pinned to 1.
     volumeGain.gain.value = Math.max(0, Math.min(1, state.userVolume * state.sleep.fadeGain));
     el.audio.volume = 1;
+    voiceHighpass.frequency.value = state.voiceBoost ? VOICE_HIGHPASS_ON_HZ : VOICE_HIGHPASS_OFF_HZ;
+    voicePresence.gain.value = state.voiceBoost ? VOICE_PRESENCE_GAIN_DB : 0;
   } catch (err) {
     console.error('[audio] graph init failed:', err);
     audioGraphFailed = true;
@@ -1338,6 +1366,26 @@ function setNormalize(on) {
     setNormGain(1, 0.3);
     state.norm = null;
   }
+}
+
+/** Smoothly ramp a filter's AudioParam to `value` over `ramp` seconds — same pattern as setNormGain. */
+function rampParam(param, value, ramp = 0.3) {
+  const t = audioGraph.ctx.currentTime;
+  param.cancelScheduledValues(t);
+  param.setValueAtTime(param.value, t);
+  param.linearRampToValueAtTime(value, t + ramp);
+}
+
+/** Turn the Voice Boost EQ (highpass + presence lift) on/off. */
+function setVoiceBoost(on) {
+  state.voiceBoost = on;
+  localStorage.setItem('voiceBoost', on ? '1' : '0');
+  el.voiceBoostBtn.setAttribute('aria-pressed', String(on));
+  const g = ensureAudioGraph();
+  if (!g) return;
+  if (g.ctx.state === 'suspended') g.ctx.resume();
+  rampParam(g.voiceHighpass.frequency, on ? VOICE_HIGHPASS_ON_HZ : VOICE_HIGHPASS_OFF_HZ);
+  rampParam(g.voicePresence.gain, on ? VOICE_PRESENCE_GAIN_DB : 0);
 }
 
 /** Sends the current playback snapshot to Discord Rich Presence, if enabled. */
@@ -1660,8 +1708,11 @@ el.audio.addEventListener('play', () => {
   pushDiscordActivity();
 
   // A Web Audio graph can only be built during/after a user gesture; first play
-  // is our chance. Resume it too — the context suspends when idle.
-  if (state.skipSilence || state.normalize) {
+  // is our chance. Resume it too — the context suspends when idle. Must check
+  // every feature that routes through the graph: missing one here means audio
+  // can go completely silent (not just "wrong EQ") whenever the context has
+  // suspended and this was the only enabled feature to leave it that way.
+  if (state.skipSilence || state.normalize || state.voiceBoost) {
     const g = ensureAudioGraph();
     if (g && g.ctx.state === 'suspended') g.ctx.resume();
   }
@@ -1702,9 +1753,22 @@ el.audio.addEventListener('ended', () => {
   flushProgress();
   renderLibrary();
 });
+// A failed load fires 'error' instead of 'loadedmetadata' — and playback in
+// seekTo() is entirely gated on 'loadedmetadata', so without this the player
+// just sits there silently on a bad file: the click visibly does nothing,
+// with no indication why short of opening DevTools.
 el.audio.addEventListener('error', () => {
   const err = el.audio.error;
-  if (err) console.error(`audio error (code ${err.code}):`, err.message);
+  if (!err) return;
+  console.error(`audio error (code ${err.code}):`, err.message);
+  if (state.playing) {
+    const reason = err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
+      ? 'unsupported or corrupted file'
+      : err.code === MediaError.MEDIA_ERR_DECODE
+        ? 'the file could not be decoded'
+        : 'could not load the file';
+    showToast(`Couldn't play "${state.playing.title}" — ${reason}.`);
+  }
 });
 
 // Persist every 5s while playing so a hard crash loses very little.
@@ -1768,6 +1832,7 @@ el.sortSelect.addEventListener('change', () => {
 
 el.skipSilenceBtn.addEventListener('click', () => setSkipSilence(!state.skipSilence));
 el.normalizeBtn.addEventListener('click', () => setNormalize(!state.normalize));
+el.voiceBoostBtn.addEventListener('click', () => setVoiceBoost(!state.voiceBoost));
 el.discordBtn.addEventListener('click', () => setDiscordPresence(!state.discordPresence));
 
 el.filterTabs.addEventListener('click', (e) => {
@@ -2690,6 +2755,9 @@ document.addEventListener('keydown', (e) => {
     case 'n': case 'N':
       if (!el.player.classList.contains('hidden')) setNormalize(!state.normalize);
       break;
+    case 'v': case 'V':
+      if (!el.player.classList.contains('hidden')) setVoiceBoost(!state.voiceBoost);
+      break;
     case 't': case 'T':
       if (!el.player.classList.contains('hidden')) {
         openSleepMenu(el.sleepMenu.classList.contains('hidden'));
@@ -2808,6 +2876,7 @@ el.audio.crossOrigin = 'anonymous';
 el.audio.preservesPitch = true;
 el.skipSilenceBtn.setAttribute('aria-pressed', String(state.skipSilence));
 el.normalizeBtn.setAttribute('aria-pressed', String(state.normalize));
+el.voiceBoostBtn.setAttribute('aria-pressed', String(state.voiceBoost));
 el.discordBtn.setAttribute('aria-pressed', String(state.discordPresence));
 // The main process's enabled flag starts false regardless of what was
 // persisted last session — sync it once at startup rather than waiting for

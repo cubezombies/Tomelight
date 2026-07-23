@@ -14,10 +14,17 @@ const IMAGE_NAMES = ['cover', 'folder', 'front', 'album', 'artwork'];
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png'];
 const SKIP_DIRS = new Set(['node_modules', '$RECYCLE.BIN', 'System Volume Information']);
 // Scanning is I/O bound on the library drive, so overlapping reads matters far
-// more than CPU. BOOK_CONCURRENCY parallelises across books (which is what makes
-// a library of single-file m4bs fast); TRACK_CONCURRENCY parallelises the tracks
-// within one multi-file book. The product is the real ceiling on open handles.
-const BOOK_CONCURRENCY = 4;
+// more than CPU — but *how* they overlap matters differently depending on the
+// drive. BOOK_CONCURRENCY parallelises across books, i.e. across *different*
+// directories; TRACK_CONCURRENCY parallelises the tracks within one multi-file
+// book, i.e. within the *same* directory. On an SSD/NVMe both are cheap (no
+// seek cost, so more overlap is close to free). On a spinning HDD — confirmed
+// via Get-PhysicalDisk on this dev machine's library drive — BOOK_CONCURRENCY
+// is the expensive one: 4 books in flight means the head is jumping between 4
+// unrelated directories, which can cost more in seeks than the overlap saves.
+// TRACK_CONCURRENCY stays higher since those files share one directory and are
+// usually laid out close together, so the seeks between them are cheap either way.
+const BOOK_CONCURRENCY = 2;
 const TRACK_CONCURRENCY = 8;
 
 // A folder of several self-contained files is ambiguous: it could be one book

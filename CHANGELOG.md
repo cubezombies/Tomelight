@@ -8,6 +8,32 @@ what the in-app "Check for Updates" screen shows) — see
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-23
+### Added
+- **Voice Boost** — a speech-tuned EQ for fast listening, where deep-voiced
+  narration turns muddy at 2.5–3×. The 🎚 button (off by default; `V`
+  toggles) runs two `BiquadFilterNode`s spliced into the existing Web Audio
+  graph: a ~100Hz highpass clears low rumble, and a +8dB peaking filter at
+  ~2.8kHz lifts the consonant/sibilance range that carries intelligibility.
+  Both ramp smoothly rather than snapping, and stack cleanly with
+  skip-silence and normalization since all three share the same graph.
+- A native right-click context menu (Cut/Copy/Paste/Undo/Redo/Select All) in
+  text fields — Electron ships none by default.
+
+### Fixed
+- The audio graph's "resume on play" check didn't account for Voice Boost,
+  so with skip-silence and normalization both off, playback could route
+  through a suspended Web Audio context and produce no sound at all —
+  looking like a dead player rather than a missing EQ effect.
+- A track that fails to load or decode now shows a toast explaining why,
+  instead of failing completely silently (previously logged to the DevTools
+  console only, so a broken file just looked like an unresponsive play
+  button).
+- Reduced book-scan concurrency to cut down on disk-seek thrashing on
+  spinning HDDs, where reading several unrelated directories in parallel
+  costs more in seek time than the overlap saves (SSDs are largely
+  unaffected either way).
+
 ## [0.7.0] - 2026-07-23
 ### Added
 - **File → Reorganize library by author…** — previews a move of every book

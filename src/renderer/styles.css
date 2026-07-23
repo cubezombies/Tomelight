@@ -437,6 +437,7 @@ code { background: var(--bg-elev-2); padding: 1px 5px; border-radius: 4px; font-
 /* ---------- Toggle buttons (skip-silence, normalize, Discord presence) ---------- */
 .normalize-btn[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 .skipsil-btn[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
+.voiceboost-btn[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 #discordBtn[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 .skipsil-btn.skipping { animation: skipsil-pulse .8s ease-in-out infinite; }
 @keyframes skipsil-pulse {

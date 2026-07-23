@@ -99,6 +99,11 @@ Already shipped, so it is not repeated in the lists below:
   against synthetic fixtures before ever touching real files, then
   hands-on confirmed against the real library, including undo. Shipped
   2026-07-23.
+- **Voice Boost EQ** — the 🎚 button (`V` toggles) runs a ~100Hz highpass plus
+  a ~2.8kHz presence-peak `BiquadFilterNode` pair, spliced into the same Web
+  Audio graph as skip-silence/normalization, to keep dialogue intelligible
+  at 2.5–3× where deep-voiced narration turns muddy (Tier 2 #8, shipped).
+  Off by default; ramps smoothly rather than snapping. Shipped 2026-07-23.
 
 Known gaps carried forward as motivation: series volumes can share a display
 title, box sets stay whole, and merged `.m4b` parts collapse to one chapter each.
@@ -485,10 +490,17 @@ are enforced independently, rather than trusted to the library.
 *Still needed:* a real Discord Application ID (`DISCORD_CLIENT_ID`) baked into
 the shipped build; the feature is fully wired but inert until one is set.
 
-### 8. Voice-clarity EQ / voice boost — **M**
-A speech-tuned EQ (cut low rumble, lift high-mids) that keeps dialogue crisp at
-2.5–3× where deep-voiced narration turns muddy. A Web Audio `BiquadFilter` chain
-plus a "Voice Boost" toggle. Genuinely useful for fast listeners.
+### 8. Voice-clarity EQ / voice boost — **shipped** ✅
+The 🎚 button (off by default; `V` toggles) runs two `BiquadFilterNode`s
+spliced into the existing skip-silence/normalization Web Audio graph
+(`source → analyser → normalize gain → voice boost EQ → volume gain →
+output`): a ~100Hz highpass clears low rumble that eats headroom without
+carrying intelligibility, and a peaking filter lifts the ~2.8kHz
+consonant/sibilance range that separates words at speed. Both filters ramp
+in/out over 0.3s rather than snapping (same `linearRampToValueAtTime`
+approach as normalization's gain), and stay in the graph always-connected —
+off just ramps the highpass down to 20Hz and the peak gain to 0dB, matching
+how normGain/volumeGain are already handled elsewhere in the chain.
 
 ### 9. Library organization: duplicate detection — **shipped** ✅
 **File → Find duplicate books…** groups the already-scanned library by
