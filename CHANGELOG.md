@@ -8,6 +8,15 @@ what the in-app "Check for Updates" screen shows) — see
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-07-22
+### Fixed
+- A large empty gap at the top of the window, introduced in 0.4.6. Cause:
+  the icon sprite's `<svg style="display:none">` used an inline style
+  attribute, which the page's CSP (`style-src 'self'`, no `unsafe-inline`)
+  silently blocks rather than erroring on — the sprite rendered at its
+  unstyled default size (300×150px) instead of being hidden, pushing
+  everything below it down. Moved the rule into the stylesheet instead.
+
 ## [0.4.7] - 2026-07-22
 ### Fixed
 - **Critical**: the app hung on startup, never showing a window. Cause:

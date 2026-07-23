@@ -61,6 +61,12 @@
 
 * { box-sizing: border-box; }
 
+/* The icon sprite must never render — an inline style="display:none" would
+   be blocked by this page's CSP (style-src 'self', no unsafe-inline), which
+   silently no-ops instead of erroring and leaves the <svg> at its default
+   300x150 box, pushing everything below it down. */
+#iconSprite { display: none; }
+
 /* Smooth the theme switch on the main surfaces. */
 body, .topbar, .player, .card-art, .btn, .icon-btn, input, select, .filter-tabs, .sleep-btn {
   transition: background-color .18s ease, color .18s ease, border-color .18s ease;
