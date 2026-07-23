@@ -64,6 +64,14 @@ Already shipped, so it is not repeated in the lists below:
   thumbnail-toolbar buttons (prev/play-pause/next chapter); a jump list of
   recently-played books, backed by a proper single-instance lock (Tier 2 #2,
   shipped). Shipped 2026-07-22.
+- **Discord Rich Presence** — an opt-in topbar toggle shows "Listening to
+  *\<title>* — Ch. N" on Discord, updating on chapter changes and
+  play/pause; off by default since it reports externally. Wraps
+  `@xhayper/discord-rpc` defensively — a stuck/failed connection (Discord not
+  running is the common case) is bounded to a few seconds with a retry
+  cooldown, since the library doesn't reliably fail fast on its own (Tier 2
+  #7, shipped). Needs a Discord Application ID (`DISCORD_CLIENT_ID`) to
+  actually activate; inert without one. Shipped 2026-07-22.
 
 Known gaps carried forward as motivation: series volumes can share a display
 title, box sets stay whole, and merged `.m4b` parts collapse to one chapter each.
@@ -422,9 +430,18 @@ showing the matching ebook chapter alongside audio is valuable and unique on
 Windows. Word-level sync is the ambitious version (needs the Whisper transcript
 to align text to audio).
 
-### 7. Discord Rich Presence — **S**
-"Listening to *The Way of Kings* — Ch. 12". Tiny, popular with the target
-audience, one small dependency.
+### 7. Discord Rich Presence — **shipped** ✅
+A topbar toggle (off by default) shows "Listening to *\<title>* — Ch. N" on
+Discord, pushed on chapter changes and play/pause (`pushDiscordActivity()` in
+`app.js`, hooked into the same points that already update the OS media-session
+metadata). `src/main/discord-presence.js` wraps `@xhayper/discord-rpc` on the
+main-process side, entirely best-effort: no client ID configured, or Discord
+not installed/running, and every call just no-ops. The library itself doesn't
+reliably fail fast when Discord isn't running — observed hanging indefinitely
+in testing rather than rejecting — so a 4s timeout plus a 30s retry cooldown
+are enforced independently, rather than trusted to the library.
+*Still needed:* a real Discord Application ID (`DISCORD_CLIENT_ID`) baked into
+the shipped build; the feature is fully wired but inert until one is set.
 
 ### 8. Voice-clarity EQ / voice boost — **M**
 A speech-tuned EQ (cut low rumble, lift high-mids) that keeps dialogue crisp at
