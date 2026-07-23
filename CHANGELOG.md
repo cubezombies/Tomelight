@@ -8,6 +8,22 @@ what the in-app "Check for Updates" screen shows) — see
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-23
+### Added
+- **File → Reorganize library by author…** — previews a move of every book
+  into `<library folder>/<Author>/<Title>/` before anything happens, then
+  moves on explicit confirm, journaling every individual move as it goes
+  (not batched at the end) so an interruption leaves an accurate record of
+  what's actually done. A book's own folder is only renamed wholesale when
+  it exclusively owns that folder — a folder shared by unrelated books
+  (confirmed real in this library: four different Alien audio dramas side
+  by side) only has that book's own files moved out, leaving siblings
+  untouched. **File → Undo last reorganization…** reverses the whole run.
+  Since a book's id is derived from its file path, a move mints it a new
+  one — execute and undo both carry progress, bookmarks, normalization
+  gain, metadata overrides, and transcripts over to the right id rather
+  than silently orphaning them on the next scan.
+
 ## [0.6.0] - 2026-07-22
 ### Added
 - **File → Find duplicate books…** — scans the already-scanned library (no

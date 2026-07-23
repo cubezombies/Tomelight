@@ -82,6 +82,15 @@ function deleteTranscript(bookId) {
   }
 }
 
+/** Carries a transcript over to a book's new id after a reorganize (book ids are path-derived — see library.js hashId). */
+function renameTranscript(oldId, newId) {
+  try {
+    if (fs.existsSync(transcriptPath(oldId))) fs.renameSync(transcriptPath(oldId), transcriptPath(newId));
+  } catch {
+    // Best effort.
+  }
+}
+
 function hasModel() {
   return fs.existsSync(MODEL_PATH);
 }
@@ -235,6 +244,7 @@ module.exports = {
   hasTranscript,
   loadTranscript,
   deleteTranscript,
+  renameTranscript,
   isTranscribing,
   anyTranscribing,
   cancelTranscription,

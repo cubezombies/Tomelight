@@ -370,4 +370,4 @@ async function scanLibrary(folders, cachedBooks = [], onProgress) {
   return books;
 }
 
-module.exports = { scanLibrary, AUDIO_EXTENSIONS };
+module.exports = { scanLibrary, AUDIO_EXTENSIONS, hashId };

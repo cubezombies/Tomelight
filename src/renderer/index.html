@@ -411,6 +411,33 @@
     </div>
   </div>
 
+  <div id="reorganizeModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="reorganizeModalTitle">
+    <div class="modal-box reorganize-modal">
+      <div class="modal-header">
+        <h3 id="reorganizeModalTitle">Reorganize library by author</h3>
+        <button id="reorganizeModalClose" class="icon-btn" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg></button>
+      </div>
+      <p class="muted small">
+        Moves every book on disk into &lt;library folder&gt;/&lt;Author&gt;/&lt;Title&gt;/.
+        Nothing is moved until you confirm below, and the most recent run can
+        always be reversed from File &gt; Undo last reorganization.
+      </p>
+
+      <div id="reorganizeStatus" class="muted small" role="status" aria-live="polite">Computing plan…</div>
+      <div id="reorganizeList" class="reorganize-list"></div>
+
+      <div id="reorganizeProgressTrack" class="updates-progress-track hidden">
+        <div id="reorganizeProgressFill" class="updates-progress-fill"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="reorganizeConfirmBtn" class="btn btn-primary hidden">Move books</button>
+        <button id="reorganizeCancelBtn" class="btn btn-quiet hidden">Cancel</button>
+        <button id="reorganizeCloseBtn" class="btn btn-quiet hidden">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

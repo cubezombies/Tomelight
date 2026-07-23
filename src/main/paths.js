@@ -67,6 +67,17 @@ module.exports = {
   // and re-downloadable, so it lives alongside rather than inside the other
   // small JSON stores.
   WHISPER_MODEL_DIR: path.join(DATA_ROOT, 'whisper-models'),
+  // Record of the most recent File > Reorganize by author run (every move
+  // performed, in order) — powers Undo. Overwritten by each new run, so
+  // only the single most recent reorganization can be undone.
+  REORG_JOURNAL_FILE: path.join(DATA_ROOT, 'last-reorganization.json'),
+  // { [newId]: oldId } for every book whose id changed in the most recent
+  // reorganization — book ids are derived from file path (see library.js
+  // hashId), so a move always mints a new id. Lets Undo carry progress,
+  // bookmarks, normalization gain, metadata overrides, and transcripts back
+  // to the id a book had before it moved. Same overwrite-per-run lifecycle
+  // as REORG_JOURNAL_FILE.
+  REORG_ID_MAP_FILE: path.join(DATA_ROOT, 'last-reorganization-ids.json'),
   // Default location backups are offered/looked for. A sibling of DATA_ROOT
   // (not inside it) on purpose: deleting or corrupting the live data folder
   // must not take the backups down with it.

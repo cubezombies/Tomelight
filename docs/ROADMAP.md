@@ -87,6 +87,18 @@ Already shipped, so it is not repeated in the lists below:
   Removal goes to the Recycle Bin, one book's own files only. Validated
   against this library: 376 titles, 468 removable copies found. Shipped
   2026-07-22.
+- **Reorganize library by author** — **File → Reorganize library by
+  author…** previews a move of every book into `<library folder>/<Author>/
+  <Title>/` before touching disk, moves only on explicit confirm, and
+  journals every individual move so **File → Undo last reorganization…** can
+  reverse the whole run. A shared folder (unrelated books filed side by
+  side) only has its own book's files moved, never the whole folder. Since
+  book ids are derived from file path, execute/undo both carry progress,
+  bookmarks, normalization, metadata overrides, and transcripts to a moved
+  book's new id rather than orphaning them (Tier 2 #10, shipped). Verified
+  against synthetic fixtures before ever touching real files, then
+  hands-on confirmed against the real library, including undo. Shipped
+  2026-07-23.
 
 Known gaps carried forward as motivation: series volumes can share a display
 title, box sets stay whole, and merged `.m4b` parts collapse to one chapter each.
@@ -491,10 +503,28 @@ books: 376 titles with at least one real duplicate, 468 removable copies,
 found alongside titles with 2-3 *genuinely different* narrators (never
 flagged) — confirming the recording-matching split is doing real work, not
 just title-matching.
-*Still possible:* reorganize-by-author/series and genre-from-folder — much
-higher risk (bulk file moves across the whole library), scoped as a
-separate future project with mandatory preview/dry-run, not an extension of
-this pass.
+### 10. Library organization: reorganize by author — **shipped** ✅
+**File → Reorganize library by author…** computes (but does not perform) a
+move of every book into `<library folder>/<Author>/<Title>/`, shows the full
+plan in a preview modal, and only touches disk after an explicit confirm.
+`src/main/reorganize.js` separates `computePlan()` (pure, read-only) from
+`executePlan()` (moves one book at a time, journaling every individual move
+as it happens) and `undoLastReorganization()` (replays the journal
+backwards) — verified against synthetic fixtures covering an
+exclusively-owned folder rename, a folder shared by unrelated books (moves
+only that book's own files, confirmed real in this library: four different
+Alien audio dramas side by side in one folder), an already-correctly-placed
+book, author/title collisions, illegal-Windows-character sanitization, and a
+nested-subfolder multi-track book, plus full undo. Since a book's id is
+derived from its file path, a move mints it a new one; execute and undo both
+carry progress, bookmarks, normalization gain, metadata overrides, and
+transcripts over to the right id (`newBookId()`/`remapIdKeyedStores()` in
+`main.js`) rather than silently orphaning them on the next scan — the id
+formula was independently checked against the real `scanLibrary()`, not just
+assumed to match. Confirmed working hands-on against the real library,
+including undo.
+*Still possible:* genre-from-folder reorganization, on the same
+preview/journal/undo machinery.
 
 ---
 

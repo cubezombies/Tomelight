@@ -52,6 +52,11 @@ contextBridge.exposeInMainWorld('api', {
   deleteTranscript: (bookId) => ipcRenderer.invoke('transcript:delete', bookId),
   findDuplicates: () => ipcRenderer.invoke('duplicates:find'),
   removeDuplicateBook: (bookId) => ipcRenderer.invoke('duplicates:remove', bookId),
+  planReorganize: () => ipcRenderer.invoke('reorganize:plan'),
+  executeReorganize: () => ipcRenderer.invoke('reorganize:execute'),
+  cancelReorganize: () => ipcRenderer.invoke('reorganize:cancel'),
+  undoReorganize: () => ipcRenderer.invoke('reorganize:undo'),
+  hasReorganizeUndo: () => ipcRenderer.invoke('reorganize:hasUndo'),
 
   onLibraryChanged: (cb) => {
     const listener = (_event, state) => cb(state);
@@ -92,5 +97,20 @@ contextBridge.exposeInMainWorld('api', {
     const listener = () => cb();
     ipcRenderer.on('duplicates:open', listener);
     return () => ipcRenderer.off('duplicates:open', listener);
+  },
+  onOpenReorganize: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on('reorganize:open', listener);
+    return () => ipcRenderer.off('reorganize:open', listener);
+  },
+  onReorganizeUndoRequested: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on('reorganize:undo-requested', listener);
+    return () => ipcRenderer.off('reorganize:undo-requested', listener);
+  },
+  onReorganizeProgress: (cb) => {
+    const listener = (_event, info) => cb(info);
+    ipcRenderer.on('reorganize:progress', listener);
+    return () => ipcRenderer.off('reorganize:progress', listener);
   },
 });

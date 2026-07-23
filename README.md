@@ -326,6 +326,29 @@ delete, and only ever the files that book actually owns — never the whole
 containing folder, since a folder can hold other, unrelated books alongside
 it. The library updates immediately; no rescan needed.
 
+## Reorganizing your library by author
+
+**File → Reorganize library by author…** moves every book on disk into
+`<library folder>/<Author>/<Title>/`. Nothing moves until you review the
+full plan and explicitly confirm — the preview shows exactly what would go
+where, plus how many books are already correctly filed or skipped (books
+outside any configured library folder).
+
+A folder that's shared by more than one unrelated book — a real case in
+this library: several different audio dramas filed side by side in one
+folder — only has that specific book's own files moved out; the shared
+folder itself is never renamed out from under its other occupants.
+
+Every individual move is journaled as it happens, so **File → Undo last
+reorganization…** can put everything back exactly where it was, including
+after an interruption or a cancelled run. Listening progress, bookmarks,
+loudness normalization, metadata overrides, and transcripts all move with
+their book, even though moving a book changes its internal id.
+
+This is the highest-risk feature in the app, since a bug moves real files
+rather than just app data — consider **File → Backup data…** first if
+you'd like an extra safety net beyond the built-in undo.
+
 ## Keyboard
 
 | Key | Action |

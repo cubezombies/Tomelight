@@ -9,7 +9,7 @@ const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron')
 const {
   USER_DATA, LIBRARY_FILE, PROGRESS_FILE, BOOKMARKS_FILE, NORMALIZATION_FILE,
   METADATA_FILE, DATA_ROOT, OS_DEFAULT_ROOT, COVER_CACHE, ONLINE_COVER_CACHE, BACKUP_DIR,
-  setDataLocation, clearDataLocation,
+  REORG_ID_MAP_FILE, setDataLocation, clearDataLocation,
 } = require('./paths');
 const { isFinishedByPosition } = require('./finished');
 
@@ -40,7 +40,7 @@ app.setPath('userData', USER_DATA);
 app.setPath('sessionData', USER_DATA);
 
 const { JsonStore } = require('./store');
-const { scanLibrary } = require('./library');
+const { scanLibrary, hashId } = require('./library');
 const { registerScheme, registerMediaProtocol, mediaUrl } = require('./media-protocol');
 const { searchOpenLibrary, fetchWorkDescription, downloadCover } = require('./metadata-lookup');
 const updater = require('./updater');
@@ -48,6 +48,7 @@ const taskbar = require('./taskbar');
 const discord = require('./discord-presence');
 const transcriber = require('./transcribe');
 const duplicates = require('./duplicates');
+const reorganizer = require('./reorganize');
 
 registerScheme();
 
@@ -65,6 +66,41 @@ const metadataStore = new JsonStore(METADATA_FILE, {});
 
 let mainWindow = null;
 let scanning = false;
+
+// The plan most recently previewed via reorganize:plan, held here (not
+// trusted from the renderer) so reorganize:execute always runs exactly what
+// was shown to the user, even if the library changed underneath in between.
+let pendingReorgPlan = null;
+
+/**
+ * A book's id is a hash of its file path (see library.js hashId) — moving it
+ * during a reorganize always mints a new id. Mirrors that exact formula so
+ * the freshly-moved book's id matches what the next rescan would assign it,
+ * rather than drifting apart and forcing an unnecessary re-tag.
+ */
+function newBookId(book, newSourceDir, newTrackPaths) {
+  return hashId(book.kind === 'single' ? newTrackPaths[0] : `${newSourceDir}::${newTrackPaths.length}`);
+}
+
+/**
+ * Carries progress, bookmarks, normalization gain, metadata overrides, and a
+ * transcript over from one book id to another — needed whenever a
+ * reorganize (or its undo) changes a book's id out from under data that was
+ * keyed by the old one.
+ */
+function remapIdKeyedStores(oldId, newId) {
+  if (oldId === newId) return;
+  for (const store of [progressStore, bookmarksStore, normalizationStore, metadataStore]) {
+    const data = store.get();
+    if (Object.prototype.hasOwnProperty.call(data, oldId)) {
+      const next = { ...data };
+      next[newId] = next[oldId];
+      delete next[oldId];
+      store.set(next);
+    }
+  }
+  transcriber.renameTranscript(oldId, newId);
+}
 
 // Set when the app is launched (or re-launched, via second-instance) from a
 // jump-list "Continue Listening" click; consumed once via app:getInitialOpenBook.
@@ -514,6 +550,8 @@ function buildMenu() {
         { label: 'Reset library location to default', click: () => resetDataLocation() },
         { type: 'separator' },
         { label: 'Find duplicate books…', click: () => mainWindow?.webContents.send('duplicates:open') },
+        { label: 'Reorganize library by author…', click: () => mainWindow?.webContents.send('reorganize:open') },
+        { label: 'Undo last reorganization…', click: () => mainWindow?.webContents.send('reorganize:undo-requested') },
         { type: 'separator' },
         { role: 'quit' },
       ],
@@ -957,6 +995,121 @@ function registerIpc() {
     mainWindow?.webContents.send('library:changed', currentState());
     refreshJumpList();
     return { ok: true, partial: failed.length > 0 };
+  });
+
+  /**
+   * Computes (but does not perform) a move for every book into
+   * <library folder>/<Author>/<Title>/. Cached as pendingReorgPlan so the
+   * confirm step in reorganize:execute always acts on exactly what was
+   * previewed, never on a plan the renderer could have altered or a stale
+   * one from before the library changed.
+   */
+  ipcMain.handle('reorganize:plan', () => {
+    const state = libraryStore.get();
+    const plan = reorganizer.computePlan(state.books, state.folders);
+    pendingReorgPlan = plan;
+    return {
+      moves: plan.moves.map((m) => ({
+        bookId: m.bookId, title: m.title, author: m.author, mode: m.mode,
+        fromDir: m.fromDir, toDir: m.toDir, trackCount: m.fromFiles.length,
+      })),
+      skipped: plan.skipped,
+      alreadyCorrectCount: plan.alreadyCorrectCount,
+    };
+  });
+
+  ipcMain.handle('reorganize:cancel', () => {
+    reorganizer.cancel();
+    return { ok: true };
+  });
+
+  ipcMain.handle('reorganize:hasUndo', () => reorganizer.hasJournal());
+
+  /**
+   * Executes the previously previewed plan, then patches the moved books'
+   * id/sourceDir/tracks in place (no rescan needed) and carries their
+   * progress/bookmarks/normalization/metadata/transcripts over to their new,
+   * path-derived ids — see newBookId/remapIdKeyedStores above.
+   */
+  ipcMain.handle('reorganize:execute', async () => {
+    if (!pendingReorgPlan) return { ok: false, error: 'No plan to execute — preview first.' };
+    if (reorganizer.isRunning()) return { ok: false, error: 'A reorganization is already running.' };
+
+    const plan = pendingReorgPlan;
+    const result = await reorganizer.executePlan(
+      plan,
+      (p) => mainWindow?.webContents.send('reorganize:progress', p),
+    );
+
+    const state = libraryStore.get();
+    const books = [...state.books];
+    const idMap = {};
+    for (const move of plan.moves) {
+      const update = result.pathUpdates[move.bookId];
+      if (!update) continue; // failed or never reached (cancelled)
+      const idx = books.findIndex((b) => b.id === move.bookId);
+      if (idx === -1) continue;
+
+      const oldBook = books[idx];
+      const newId = newBookId(oldBook, update.sourceDir, update.trackPaths);
+      const tracks = oldBook.tracks.map((t, i) => ({ ...t, filePath: update.trackPaths[i] }));
+      books[idx] = { ...oldBook, id: newId, sourceDir: update.sourceDir, tracks };
+
+      remapIdKeyedStores(oldBook.id, newId);
+      if (newId !== oldBook.id) idMap[newId] = oldBook.id;
+    }
+    libraryStore.set({ ...state, books });
+    progressStore.flushSync();
+    bookmarksStore.flushSync();
+    normalizationStore.flushSync();
+    metadataStore.flushSync();
+
+    if (Object.keys(idMap).length) {
+      fs.mkdirSync(path.dirname(REORG_ID_MAP_FILE), { recursive: true });
+      fs.writeFileSync(REORG_ID_MAP_FILE, JSON.stringify(idMap), 'utf8');
+    } else {
+      fs.rmSync(REORG_ID_MAP_FILE, { force: true });
+    }
+
+    pendingReorgPlan = null;
+    mainWindow?.webContents.send('library:changed', currentState());
+    refreshJumpList();
+    return {
+      ok: true,
+      moved: result.moved.length,
+      failed: result.failed,
+      cancelledEarly: result.cancelledEarly,
+    };
+  });
+
+  /**
+   * Reverses the last reorganize's file moves, then carries id-keyed data
+   * back to each book's pre-move id, then a full rescan — simpler and just
+   * as correct as hand-reconstructing original sourceDir/tracks, since undo
+   * is a rare, explicit action where a one-time re-tag is an acceptable cost.
+   */
+  ipcMain.handle('reorganize:undo', async () => {
+    if (reorganizer.isRunning()) return { ok: false, error: 'A reorganization is currently running.' };
+
+    const result = await reorganizer.undoLastReorganization(
+      (p) => mainWindow?.webContents.send('reorganize:progress', p),
+    );
+
+    let idMap = {};
+    try {
+      idMap = JSON.parse(fs.readFileSync(REORG_ID_MAP_FILE, 'utf8'));
+    } catch {
+      idMap = {};
+    }
+    for (const [newId, oldId] of Object.entries(idMap)) remapIdKeyedStores(newId, oldId);
+    fs.rmSync(REORG_ID_MAP_FILE, { force: true });
+    progressStore.flushSync();
+    bookmarksStore.flushSync();
+    normalizationStore.flushSync();
+    metadataStore.flushSync();
+
+    await runScan();
+    return { ok: result.ok, errors: result.errors };
   });
 
   // One-shot: consumed by the renderer on bootstrap so a jump-list launch

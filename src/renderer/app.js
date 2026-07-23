@@ -41,6 +41,11 @@ const el = {
   duplicatesModal: $('duplicatesModal'), duplicatesModalClose: $('duplicatesModalClose'),
   duplicatesFilter: $('duplicatesFilter'), duplicatesStatus: $('duplicatesStatus'),
   duplicatesList: $('duplicatesList'),
+  reorganizeModal: $('reorganizeModal'), reorganizeModalClose: $('reorganizeModalClose'),
+  reorganizeStatus: $('reorganizeStatus'), reorganizeList: $('reorganizeList'),
+  reorganizeProgressTrack: $('reorganizeProgressTrack'), reorganizeProgressFill: $('reorganizeProgressFill'),
+  reorganizeConfirmBtn: $('reorganizeConfirmBtn'), reorganizeCancelBtn: $('reorganizeCancelBtn'),
+  reorganizeCloseBtn: $('reorganizeCloseBtn'),
   updatesBtn: $('updatesBtn'), updatesDot: $('updatesDot'), discordBtn: $('discordBtn'),
   updatesModal: $('updatesModal'), updatesModalClose: $('updatesModalClose'),
   updatesCurrentVersion: $('updatesCurrentVersion'), updatesStatus: $('updatesStatus'),
@@ -142,6 +147,8 @@ const state = {
   captionsOn: localStorage.getItem('captionsOn') === '1',
   captionIndex: -1, // index into the current transcript's segments last shown as a caption
   duplicateReports: [], // last result from duplicates:find, re-fetched after any removal
+  // File > Reorganize by author…. phase: 'planning' | 'preview' | 'running' | 'done'.
+  reorganize: { phase: 'planning', plan: null, result: null },
 };
 
 let gridObserver = null;
@@ -2366,6 +2373,166 @@ async function removeDuplicateCopy(book, button, row) {
   state.duplicateReports = await window.api.findDuplicates();
   renderDuplicateReports(el.duplicatesFilter.value);
 }
+
+/* ----------------
+ * Reorganize library by author (File > Reorganize library by author…) —
+ * computePlan()/executePlan()/undoLastReorganization() do the real work in
+ * main.js (see reorganize.js); this just drives preview -> confirm ->
+ * progress -> done and shows exactly what will move before anything does.
+ * ---------------- */
+
+// Keeps the DOM light for a library with thousands of planned moves — the
+// status line above the list always reflects the true total regardless.
+const REORGANIZE_LIST_CAP = 300;
+
+let reorganizeProgressOff = null;
+
+function closeReorganizeModal() {
+  // A move in flight must run to completion (or an explicit Cancel) — closing
+  // the modal must never orphan it silently.
+  if (state.reorganize.phase === 'running') return;
+  el.reorganizeModal.classList.add('hidden');
+}
+
+async function openReorganizeModal() {
+  el.reorganizeModal.classList.remove('hidden');
+  state.reorganize = { phase: 'planning', plan: null, result: null };
+  renderReorganizeModal();
+  const plan = await window.api.planReorganize();
+  state.reorganize = { phase: 'preview', plan, result: null };
+  renderReorganizeModal();
+}
+window.api.onOpenReorganize(openReorganizeModal);
+el.reorganizeModalClose.addEventListener('click', closeReorganizeModal);
+el.reorganizeModal.addEventListener('click', (e) => {
+  if (e.target === el.reorganizeModal) closeReorganizeModal();
+});
+el.reorganizeModal.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.stopPropagation(); closeReorganizeModal(); }
+});
+
+/** Last two path segments is plenty of context for a row; the full paths are in the title tooltip. */
+function shortDir(dir) {
+  return dir.split(/[\\/]/).slice(-2).join('/');
+}
+
+function renderReorganizeList(rows) {
+  el.reorganizeList.replaceChildren();
+  const frag = document.createDocumentFragment();
+  for (const entry of rows.slice(0, REORGANIZE_LIST_CAP)) {
+    const row = document.createElement('div');
+    row.className = 'reorganize-row';
+    row.textContent = entry.text;
+    row.title = entry.title;
+    frag.append(row);
+  }
+  if (rows.length > REORGANIZE_LIST_CAP) {
+    const more = document.createElement('div');
+    more.className = 'reorganize-row muted';
+    more.textContent = `…and ${(rows.length - REORGANIZE_LIST_CAP).toLocaleString()} more.`;
+    frag.append(more);
+  }
+  el.reorganizeList.append(frag);
+}
+
+function renderReorganizeModal() {
+  const { phase, plan, result } = state.reorganize;
+  const hasMoves = phase === 'preview' && plan?.moves.length > 0;
+
+  el.reorganizeConfirmBtn.classList.toggle('hidden', !hasMoves);
+  el.reorganizeCancelBtn.classList.toggle('hidden', phase !== 'running' && !hasMoves);
+  el.reorganizeCancelBtn.disabled = false;
+  el.reorganizeCloseBtn.classList.toggle('hidden', phase === 'running' || hasMoves || phase === 'planning');
+  el.reorganizeProgressTrack.classList.toggle('hidden', phase !== 'running');
+  if (phase !== 'running') el.reorganizeProgressFill.style.width = '0%';
+
+  if (phase === 'planning') {
+    el.reorganizeStatus.textContent = 'Computing plan…';
+    el.reorganizeList.replaceChildren();
+  } else if (phase === 'preview') {
+    if (!hasMoves) {
+      el.reorganizeStatus.textContent = plan.alreadyCorrectCount
+        ? `Nothing to do — all ${plan.alreadyCorrectCount.toLocaleString()} book(s) are already organized.`
+        : 'Nothing to do.';
+      el.reorganizeList.replaceChildren();
+    } else {
+      el.reorganizeStatus.textContent = `${plan.moves.length.toLocaleString()} book(s) will move`
+        + (plan.alreadyCorrectCount ? ` · ${plan.alreadyCorrectCount.toLocaleString()} already organized` : '')
+        + (plan.skipped.length ? ` · ${plan.skipped.length.toLocaleString()} skipped` : '');
+      renderReorganizeList(plan.moves.map((m) => ({
+        text: `${m.title} — ${shortDir(m.fromDir)} → ${shortDir(m.toDir)}`,
+        title: `${m.fromDir}\n→ ${m.toDir}`,
+      })));
+    }
+  } else if (phase === 'running') {
+    el.reorganizeList.replaceChildren();
+    // status/progress bar are updated live by the onReorganizeProgress listener below
+  } else {
+    const failedCount = result?.failed?.length ?? 0;
+    el.reorganizeStatus.textContent = result?.ok === false
+      ? (result.error || 'Reorganization failed.')
+      : `Moved ${(result?.moved ?? 0).toLocaleString()} book(s).`
+        + (result?.cancelledEarly ? ' Cancelled — the rest were left in place.' : '')
+        + (failedCount ? ` ${failedCount.toLocaleString()} failed.` : '');
+    renderReorganizeList(
+      failedCount ? result.failed.map((f) => ({ text: `${f.title} — ${f.error}`, title: f.error })) : [],
+    );
+  }
+}
+
+el.reorganizeConfirmBtn.addEventListener('click', async () => {
+  const { plan } = state.reorganize;
+  if (!plan?.moves.length) return;
+  const proceed = window.confirm(
+    `Move ${plan.moves.length.toLocaleString()} book(s) into <library folder>/<Author>/<Title>/ on disk?\n\n`
+    + 'This physically moves real files. The whole run can be reversed afterward from File > Undo last reorganization.',
+  );
+  if (!proceed) return;
+
+  state.reorganize.phase = 'running';
+  renderReorganizeModal();
+  el.reorganizeStatus.textContent = `Moving 0/${plan.moves.length.toLocaleString()}…`;
+
+  reorganizeProgressOff = window.api.onReorganizeProgress((p) => {
+    el.reorganizeProgressFill.style.width = `${p.total ? Math.round((p.done / p.total) * 100) : 0}%`;
+    el.reorganizeStatus.textContent = `Moving ${p.done.toLocaleString()}/${p.total.toLocaleString()} — ${p.bookTitle}`;
+  });
+
+  const result = await window.api.executeReorganize();
+  reorganizeProgressOff?.();
+  reorganizeProgressOff = null;
+
+  state.reorganize = { phase: 'done', plan, result };
+  renderReorganizeModal();
+});
+
+el.reorganizeCancelBtn.addEventListener('click', () => {
+  if (state.reorganize.phase === 'running') {
+    window.api.cancelReorganize();
+    el.reorganizeCancelBtn.disabled = true; // the in-flight move still finishes; avoid a confusing double-cancel
+  } else {
+    closeReorganizeModal();
+  }
+});
+el.reorganizeCloseBtn.addEventListener('click', closeReorganizeModal);
+
+window.api.onReorganizeUndoRequested(async () => {
+  const hasUndo = await window.api.hasReorganizeUndo();
+  if (!hasUndo) {
+    showToast('No reorganization to undo.');
+    return;
+  }
+  const proceed = window.confirm('Undo the last reorganization? This moves every book back to where it was before.');
+  if (!proceed) return;
+  showToast('Undoing last reorganization…');
+  const result = await window.api.undoReorganize();
+  if (result.ok) {
+    showToast('Reorganization undone.');
+  } else {
+    showToast(`Undo finished with ${result.errors.length} error(s) — check the console for details.`);
+    console.error('[reorganize] undo errors:', result.errors);
+  }
+});
 
 /* ----------------
  * Updates — every check is user-initiated (the topbar button or the Help
