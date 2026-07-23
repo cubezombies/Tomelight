@@ -455,7 +455,8 @@ approximation.
 
 The ⏩ button (or `S`) shortens the dead air in a book. The audio is routed
 through a Web Audio `AnalyserNode`; when it detects a *sustained* quiet gap
-(≈0.2s, so natural between-word pauses are left alone) it briefly raises the
+(≈0.7s, so a narrator pausing to breathe mid-sentence is left alone — a
+shorter threshold was audibly clipping into those) it briefly raises the
 playback rate so the gap passes quickly, then snaps back to your speed the
 instant speech returns — no hard cut. It stacks on your per-book speed (capped so
 playback stays intelligible) and keeps working while the app is in the

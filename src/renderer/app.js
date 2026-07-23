@@ -1172,7 +1172,13 @@ function applySkipAmount(seconds) {
  * crossOrigin='anonymous', so the analyser isn't tainted (would read zeros).
  */
 const SILENCE_RMS = 0.01;     // below this = quiet (speech sits well above, ~0.03+)
-const SILENCE_ENTER_MS = 200; // sustained quiet before boosting (skip pauses, not word gaps)
+// 200ms was too eager: a narrator taking a breath mid-sentence (still
+// speaking, just paused to inhale) routinely runs 300-500ms and was getting
+// misread as dead air, boosting speed for a moment right in the middle of a
+// sentence -- audible as a "cut"/choppiness, reported directly from testing.
+// 700ms comfortably clears a normal breath/phrase pause while still catching
+// genuine dead air (a beat between chapters, a rough studio edit).
+const SILENCE_ENTER_MS = 700; // sustained quiet before boosting (skip pauses, not word/breath gaps)
 const SILENCE_BOOST = 3;      // multiply base speed while skipping
 const SILENCE_MAX_RATE = 4;   // keep playback intelligible
 

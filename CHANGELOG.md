@@ -8,6 +8,14 @@ what the in-app "Check for Updates" screen shows) — see
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-07-23
+### Fixed
+- Skip-silence was cutting into narrators pausing to breathe mid-sentence
+  (still talking, just inhaling), boosting playback speed for a moment in
+  the middle of a sentence — audible as choppiness. The "sustained quiet"
+  threshold before boosting was only 200ms, well under a normal breath
+  pause; raised to 700ms, confirmed to fix it by ear.
+
 ## [0.9.0] - 2026-07-23
 ### Changed
 - **Two-phase library scanning** — a scan now shows the grid much sooner by

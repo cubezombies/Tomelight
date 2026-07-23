@@ -138,7 +138,7 @@ cross-book bookmark search once the data layer moves to SQLite.
 
 ### 3. Skip silence / "smart speed" — **shipped** ✅
 Real-time: the `<audio>` is routed through a Web Audio `AnalyserNode`, and a
-sustained quiet gap (RMS below ~0.01 for ≥0.2s) briefly boosts playbackRate
+sustained quiet gap (RMS below ~0.01 for ≥0.7s) briefly boosts playbackRate
 (base × 3, capped at 4) so the gap passes fast, snapping back on speech. Toggle
 with the ⏩ button or `S`; stacks on per-book speed.
 *Two things that made it work:* the `ab-media://` responses needed
@@ -147,6 +147,11 @@ tainted all-zero stream; and the detection loop must be a `setInterval`, not
 `requestAnimationFrame` — rAF is paused when the window is hidden, but a
 backgrounded audiobook still needs to skip silence (timers aren't throttled while
 audio plays).
+*Tuned after real-world use:* the original 0.2s entry threshold was catching a
+narrator's mid-sentence breathing pause (still talking, just inhaling) as dead
+air, boosting speed for a moment in the middle of a sentence — audible as
+choppiness. Raised to 0.7s, comfortably past a normal breath/phrase pause
+while still catching genuine gaps (a beat between chapters, a rough edit).
 *Still possible:* an offline silence-span pass for exact glitch-free jumps, and a
 sensitivity/adaptive-threshold control; both pair with auto-chapter generation
 (Tier 3 #3).
