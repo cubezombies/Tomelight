@@ -8,6 +8,32 @@ what the in-app "Check for Updates" screen shows) — see
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-07-22
+### Added
+- A real SVG icon set replacing every emoji/Unicode-symbol icon in the app
+  (play/pause, chapter skip, bookmark, sleep timer, theme toggle, etc.) —
+  crisp at any size and colored via `currentColor`, so it always matches the
+  theme instead of relying on the OS's emoji font.
+- A themed titlebar: the app's own topbar now doubles as the window's drag
+  region (`titleBarStyle: 'hidden'` + `titleBarOverlay`), replacing the
+  plain default Windows title bar. The minimize/maximize/close buttons are
+  still drawn natively by Windows itself (including Windows 11's
+  snap-layout hover menu) — only their color is synced to the app's
+  light/dark theme, not their behavior.
+- A real progress bar for library scans (previously just small topbar text)
+  and a loading indicator for the brief gap before the library first loads.
+- A native tooltip on library/series cards showing the full title/author,
+  since long titles get clamped to 2 lines in the grid.
+- A visible keyboard-focus ring on library cards, matching the accent-colored
+  focus style already used elsewhere (e.g. the metadata search results).
+
+### Fixed
+- The undo toast sat ~150px above the bottom edge when no book was playing
+  (it always reserved space for the player bar, even when hidden).
+- Two different modal/overlay backdrop dims were unified into one.
+- The player's control row is now readable at the app's 940px minimum
+  window width instead of cramming 7 controls' full labels into no space.
+
 ## [0.4.5] - 2026-07-22
 ### Fixed
 - **Critical**: the preload script has been failing to load entirely since

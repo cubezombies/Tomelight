@@ -4,13 +4,14 @@ const $ = (id) => document.getElementById(id);
 
 const el = {
   main: $('main'),
-  grid: $('grid'), emptyState: $('emptyState'), search: $('search'),
+  grid: $('grid'), emptyState: $('emptyState'), search: $('search'), libraryLoading: $('libraryLoading'),
   continueSection: $('continueSection'), continueRow: $('continueRow'),
   libraryToolbar: $('libraryToolbar'), filterTabs: $('filterTabs'), filterCount: $('filterCount'),
   groupToggle: $('groupToggle'), sortSelect: $('sortSelect'),
   seriesView: $('seriesView'), seriesTitle: $('seriesTitle'), seriesSub: $('seriesSub'), seriesGrid: $('seriesGrid'),
   libraryView: $('libraryView'), bookView: $('bookView'),
-  viewTitle: $('viewTitle'), backBtn: $('backBtn'), scanStatus: $('scanStatus'), themeBtn: $('themeBtn'),
+  viewTitle: $('viewTitle'), backBtn: $('backBtn'), scanStatus: $('scanStatus'), themeBtn: $('themeBtn'), themeIcon: $('themeIcon'),
+  scanProgressBar: $('scanProgressBar'), scanProgressFill: $('scanProgressFill'),
   addFolderBtn: $('addFolderBtn'), emptyAddBtn: $('emptyAddBtn'), rescanBtn: $('rescanBtn'),
   folders: document.querySelector('.folders'), foldersBtn: $('foldersBtn'), foldersMenu: $('foldersMenu'),
   foldersList: $('foldersList'),
@@ -40,10 +41,11 @@ const el = {
   dropOverlay: $('dropOverlay'),
   bookmarkBtn: $('bookmarkBtn'), bookmarkHereBtn: $('bookmarkHereBtn'),
   bookmarkList: $('bookmarkList'), bookmarkCount: $('bookmarkCount'),
-  player: $('player'), audio: $('audio'), playBtn: $('playBtn'), seek: $('seek'),
+  player: $('player'), audio: $('audio'), playBtn: $('playBtn'), playIcon: $('playIcon'), seek: $('seek'),
   timeCurrent: $('timeCurrent'), timeTotal: $('timeTotal'),
   prevChapterBtn: $('prevChapterBtn'), nextChapterBtn: $('nextChapterBtn'),
   back30Btn: $('back30Btn'), fwd30Btn: $('fwd30Btn'), skipAmountSelect: $('skipAmount'),
+  back30Amount: $('back30Amount'), fwd30Amount: $('fwd30Amount'),
   speed: $('speed'), volume: $('volume'),
   miniCover: $('miniCover'), nowTitle: $('nowTitle'), nowChapter: $('nowChapter'),
   sleep: $('sleep') || document.querySelector('.sleep'),
@@ -301,7 +303,7 @@ function buildCard(book, { badge, delegate } = {}) {
   } else {
     const ph = document.createElement('div');
     ph.className = 'placeholder';
-    ph.textContent = '🎧';
+    ph.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-headphones"></use></svg>';
     art.append(ph);
   }
   if (badge) {
@@ -334,6 +336,10 @@ function buildCard(book, { badge, delegate } = {}) {
   author.textContent = book.author;
 
   card.append(art, title, author);
+  // Titles/authors are clamped to 2 lines and often longer than that in a
+  // real library (box sets, subtitles) — a native tooltip is the only way to
+  // read the rest without opening the book.
+  card.title = `${book.title} — ${book.author}`;
   card.dataset.bookId = book.id;
   // The main grid can hold thousands of these; it wires one delegated pair of
   // listeners instead (see the el.grid listeners below `appendGridPage`) and
@@ -437,7 +443,7 @@ function renderFoldersMenu() {
 
     const remove = document.createElement('button');
     remove.className = 'folder-remove';
-    remove.textContent = '✕';
+    remove.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-x"></use></svg>';
     remove.title = 'Remove this folder from the library';
     remove.setAttribute('aria-label', `Remove ${folder}`);
     remove.addEventListener('click', () => removeFolder(folder, n));
@@ -518,7 +524,7 @@ function buildSeriesTile(group, { delegate } = {}) {
   } else {
     const ph = document.createElement('div');
     ph.className = 'series-cover placeholder';
-    ph.textContent = '📚';
+    ph.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-book-open"></use></svg>';
     art.append(ph);
   }
   const badge = document.createElement('div');
@@ -546,6 +552,7 @@ function buildSeriesTile(group, { delegate } = {}) {
   author.textContent = group.author;
 
   card.append(art, title, author);
+  card.title = `${group.name} — ${group.author} (${group.volumes.length} books)`;
   card.dataset.seriesKey = group.key;
   if (!delegate) {
     card.addEventListener('click', () => openSeries(group));
@@ -846,7 +853,7 @@ function renderBookmarks(book) {
   if (!list.length) {
     const li = document.createElement('li');
     li.className = 'no-bookmarks';
-    li.textContent = 'No bookmarks yet — press B or the 🔖 button while listening to mark a spot.';
+    li.textContent = 'No bookmarks yet — press B or the bookmark button while listening to mark a spot.';
     el.bookmarkList.append(li);
     return;
   }
@@ -897,7 +904,7 @@ function buildBookmarkRow(book, bm) {
   actions.className = 'bookmark-actions';
   const del = document.createElement('button');
   del.className = 'bookmark-del';
-  del.textContent = '🗑';
+  del.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-trash"></use></svg>';
   del.title = 'Delete bookmark';
   del.addEventListener('click', async () => {
     state.bookmarks = await window.api.removeBookmark({ bookId: book.id, id: bm.id });
@@ -1091,20 +1098,21 @@ function applySpeed(rate) {
 }
 
 /**
- * Set the back/forward skip amount (seconds) used by the ↺/↻ buttons and the
- * plain arrow-key shortcuts, and update the buttons' labels to match — so a
- * 15s setting actually shows "↺15", not a stale "↺30". Persisted; Shift+arrow's
- * 5-minute jump is a separate, fixed "big skip" and isn't affected.
+ * Set the back/forward skip amount (seconds) used by the rewind/forward
+ * buttons and the plain arrow-key shortcuts, and update the buttons' number
+ * labels to match — so a 15s setting actually shows "15", not a stale "30".
+ * Persisted; Shift+arrow's 5-minute jump is a separate, fixed "big skip" and
+ * isn't affected.
  */
 function applySkipAmount(seconds) {
   const s = SKIP_AMOUNTS.has(Number(seconds)) ? Number(seconds) : 30;
   state.skipAmount = s;
   localStorage.setItem('skipAmount', String(s));
   el.skipAmountSelect.value = String(s);
-  el.back30Btn.textContent = `↺${s}`;
+  el.back30Amount.textContent = s;
   el.back30Btn.title = `Back ${s} seconds`;
   el.back30Btn.setAttribute('aria-label', `Back ${s} seconds`);
-  el.fwd30Btn.textContent = `${s}↻`;
+  el.fwd30Amount.textContent = s;
   el.fwd30Btn.title = `Forward ${s} seconds`;
   el.fwd30Btn.setAttribute('aria-label', `Forward ${s} seconds`);
 }
@@ -1590,7 +1598,7 @@ function togglePlayPause() {
 el.playBtn.addEventListener('click', togglePlayPause);
 
 el.audio.addEventListener('play', () => {
-  el.playBtn.textContent = '❚❚';
+  el.playIcon.setAttribute('href', '#icon-pause');
   el.playBtn.setAttribute('aria-label', 'Pause');
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
   window.api.setPlayingState(true);
@@ -1616,7 +1624,7 @@ el.audio.addEventListener('play', () => {
 });
 
 el.audio.addEventListener('pause', () => {
-  el.playBtn.textContent = '▶';
+  el.playIcon.setAttribute('href', '#icon-play');
   el.playBtn.setAttribute('aria-label', 'Play');
   if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
   window.api.setPlayingState(false);
@@ -2134,6 +2142,7 @@ document.addEventListener('keydown', (e) => {
 /* ---------------- bootstrap ---------------- */
 
 function applyState(next) {
+  el.libraryLoading.classList.add('hidden');
   state.books = next.books;
   state.progress = next.progress;
   state.folders = next.folders;
@@ -2188,6 +2197,10 @@ window.api.onScanProgress(({ done, total, scanning }) => {
     ? (total ? `Scanning ${done}/${total}…` : 'Scanning…')
     : '';
   el.rescanBtn.disabled = scanning;
+
+  el.scanProgressBar.classList.toggle('hidden', !scanning);
+  el.scanProgressBar.classList.toggle('indeterminate', scanning && !total);
+  el.scanProgressFill.style.width = total ? `${Math.min(100, (done / total) * 100)}%` : '0%';
 });
 
 el.groupToggle.setAttribute('aria-pressed', String(state.groupSeries));
@@ -2205,8 +2218,13 @@ function effectiveTheme() {
 }
 
 function updateThemeButton() {
+  const dark = effectiveTheme() === 'dark';
   // Show the sun in dark mode (click for light) and the moon in light mode.
-  el.themeBtn.textContent = effectiveTheme() === 'dark' ? '☀' : '☾';
+  el.themeIcon.setAttribute('href', dark ? '#icon-sun' : '#icon-moon');
+  // The min/max/close buttons in the titlebar are drawn natively by Windows
+  // (see titleBarOverlay in main.js) — they don't pick up the page's own
+  // theme automatically, so push it over explicitly.
+  window.api.setOverlayTheme(dark);
 }
 
 function toggleTheme() {
