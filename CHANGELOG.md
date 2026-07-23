@@ -8,6 +8,19 @@ what the in-app "Check for Updates" screen shows) — see
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-07-22
+### Added
+- **View → Toggle Developer Tools**, with the standard Ctrl+Shift+I/F12
+  shortcut. The custom application menu replaces Electron's default one,
+  which is what normally wires that shortcut up — without a `toggleDevTools`
+  role somewhere in the replacement, the accelerator was simply never
+  registered, not just hidden behind a different menu.
+
+### Fixed
+- The About window was sized a little too tight for its content (520px tall
+  vs. content closer to ~490px plus title/menu bar chrome), forcing an
+  unwanted scrollbar. Bumped to 580px.
+
 ## [0.4.3] - 2026-07-22
 ### Added
 - **File → Change library location…** and **Reset library location to

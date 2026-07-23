@@ -225,7 +225,7 @@ function openAbout() {
 
   aboutWindow = new BrowserWindow({
     width: 520,
-    height: 520,
+    height: 580,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -527,7 +527,14 @@ function buildMenu() {
     },
     {
       label: 'View',
-      submenu: [{ role: 'togglefullscreen' }],
+      submenu: [
+        { role: 'togglefullscreen' },
+        { type: 'separator' },
+        // Electron's default menu (which this replaces) is what normally wires
+        // Ctrl+Shift+I/F12 to DevTools — without this role somewhere in the
+        // custom menu, that shortcut is simply unregistered, not just hidden.
+        { role: 'toggleDevTools' },
+      ],
     },
     {
       label: 'Help',
